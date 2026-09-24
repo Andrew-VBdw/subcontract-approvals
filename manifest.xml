@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Dawson Wallace Subcontract Approvals: Word add-in manifest.
+  Replace every https://andrew-vbdw.github.io/subcontract-approvals with the address the add-in files are hosted at
+  (for example https://dawsonwallace.github.io/subcontract-approvals). deploy.sh does this for you.
+-->
+<OfficeApp xmlns="http://schemas.microsoft.com/office/appforoffice/1.1"
+           xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+           xmlns:bt="http://schemas.microsoft.com/office/officeappbasictypes/1.0"
+           xmlns:ov="http://schemas.microsoft.com/office/taskpaneappversionoverrides"
+           xsi:type="TaskPaneApp">
+  <Id>6f7c2d1e-4b8a-4c3e-9d2f-5a1b7e9c3d40</Id>
+  <Version>1.0.0.0</Version>
+  <ProviderName>Dawson Wallace Construction Ltd.</ProviderName>
+  <DefaultLocale>en-US</DefaultLocale>
+  <DisplayName DefaultValue="DW Subcontract Approvals" />
+  <Description DefaultValue="Submit Appendix A documents for approval and track subcontracts through to execution." />
+  <IconUrl DefaultValue="https://andrew-vbdw.github.io/subcontract-approvals/icon-32.png" />
+  <HighResolutionIconUrl DefaultValue="https://andrew-vbdw.github.io/subcontract-approvals/icon-80.png" />
+  <SupportUrl DefaultValue="https://andrew-vbdw.github.io/subcontract-approvals/help.html" />
+  <AppDomains>
+    <AppDomain>https://login.microsoftonline.com</AppDomain>
+  </AppDomains>
+  <Hosts>
+    <Host Name="Document" />
+  </Hosts>
+  <Requirements>
+    <Sets DefaultMinVersion="1.1">
+      <Set Name="WordApi" MinVersion="1.3" />
+    </Sets>
+  </Requirements>
+  <DefaultSettings>
+    <SourceLocation DefaultValue="https://andrew-vbdw.github.io/subcontract-approvals/taskpane.html" />
+  </DefaultSettings>
+  <Permissions>ReadWriteDocument</Permissions>
+
+  <VersionOverrides xmlns="http://schemas.microsoft.com/office/taskpaneappversionoverrides" xsi:type="VersionOverridesV1_0">
+    <Hosts>
+      <Host xsi:type="Document">
+        <DesktopFormFactor>
+          <ExtensionPoint xsi:type="PrimaryCommandSurface">
+            <OfficeTab id="TabHome">
+              <Group id="DW.Group">
+                <Label resid="DW.GroupLabel" />
+                <Icon>
+                  <bt:Image size="16" resid="DW.Icon16" />
+                  <bt:Image size="32" resid="DW.Icon32" />
+                  <bt:Image size="80" resid="DW.Icon80" />
+                </Icon>
+                <Control xsi:type="Button" id="DW.SubmitButton">
+                  <Label resid="DW.ButtonLabel" />
+                  <Supertip>
+                    <Title resid="DW.ButtonLabel" />
+                    <Description resid="DW.ButtonTip" />
+                  </Supertip>
+                  <Icon>
+                    <bt:Image size="16" resid="DW.Icon16" />
+                    <bt:Image size="32" resid="DW.Icon32" />
+                    <bt:Image size="80" resid="DW.Icon80" />
+                  </Icon>
+                  <Action xsi:type="ShowTaskpane">
+                    <TaskpaneId>DW.Taskpane</TaskpaneId>
+                    <SourceLocation resid="DW.TaskpaneUrl" />
+                  </Action>
+                </Control>
+              </Group>
+            </OfficeTab>
+          </ExtensionPoint>
+        </DesktopFormFactor>
+      </Host>
+    </Hosts>
+    <Resources>
+      <bt:Images>
+        <bt:Image id="DW.Icon16" DefaultValue="https://andrew-vbdw.github.io/subcontract-approvals/icon-16.png" />
+        <bt:Image id="DW.Icon32" DefaultValue="https://andrew-vbdw.github.io/subcontract-approvals/icon-32.png" />
+        <bt:Image id="DW.Icon80" DefaultValue="https://andrew-vbdw.github.io/subcontract-approvals/icon-80.png" />
+      </bt:Images>
+      <bt:Urls>
+        <bt:Url id="DW.TaskpaneUrl" DefaultValue="https://andrew-vbdw.github.io/subcontract-approvals/taskpane.html" />
+      </bt:Urls>
+      <bt:ShortStrings>
+        <bt:String id="DW.GroupLabel" DefaultValue="Dawson Wallace" />
+        <bt:String id="DW.ButtonLabel" DefaultValue="Submit for Approval" />
+      </bt:ShortStrings>
+      <bt:LongStrings>
+        <bt:String id="DW.ButtonTip" DefaultValue="Submit this Appendix A for approval, see its status and history, and take the next step." />
+      </bt:LongStrings>
+    </Resources>
+  </VersionOverrides>
+</OfficeApp>

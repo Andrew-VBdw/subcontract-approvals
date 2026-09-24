@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Subcontract Approvals</title>
+  <link rel="stylesheet" href="taskpane.css" />
+  <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@azure/msal-browser@4.30.0/lib/msal-browser.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+  <script src="config.js"></script>
+  <script src="graph.js"></script>
+  <script src="package-builder.js"></script>
+  <script src="taskpane.js"></script>
+</head>
+<body>
+  <header>
+    <div class="brand">Dawson Wallace</div>
+    <h1>Subcontract Approvals</h1>
+  </header>
+
+  <main>
+    <div id="msg" class="msg" hidden></div>
+    <div id="loading" class="muted">Reading the Appendix A…</div>
+
+    <section id="docSection" hidden>
+      <h2>From this Appendix A</h2>
+      <dl id="docFields" class="fields"></dl>
+      <div id="docWarnings"></div>
+    </section>
+
+    <section id="statusSection" hidden>
+      <h2>Status</h2>
+      <div class="status-row"><span id="statusBadge" class="badge"></span><span id="statusNote" class="muted"></span></div>
+      <dl id="recordFields" class="fields"></dl>
+    </section>
+
+    <section id="submitSection" hidden>
+      <h2 id="submitTitle">Submit for approval</h2>
+      <label>Estimate carried ($)
+        <input id="estimate" type="text" inputmode="decimal" placeholder="e.g. 480,000.00" />
+      </label>
+      <div id="deltaLine" class="delta" hidden></div>
+      <label>Cost code(s)
+        <input id="costCodes" type="text" placeholder="e.g. 03-3000" />
+      </label>
+      <label id="justLabel" hidden>Why is the contract over the estimate? (required)
+        <textarea id="justification" rows="3"></textarea>
+      </label>
+      <button id="submitBtn" class="primary">Submit for Approval</button>
+    </section>
+
+    <section id="actionSection" hidden>
+      <h2>Actions</h2>
+      <div id="actions" class="actions"></div>
+      <div id="actionForm" class="action-form" hidden>
+        <div id="actionPrompt"></div>
+        <textarea id="actionNote" rows="3" placeholder="Notes"></textarea>
+        <select id="actionChoice" hidden></select>
+        <label id="fileLabel" hidden>Attach email or file (.msg, .pdf)
+          <input id="actionFile" type="file" />
+        </label>
+        <div class="row">
+          <button id="actionGo" class="primary">Confirm</button>
+          <button id="actionCancel">Back</button>
+        </div>
+      </div>
+    </section>
+
+    <section id="commentSection" hidden>
+      <h2>Add a comment</h2>
+      <textarea id="comment" rows="2" placeholder="Logged against this subcontract"></textarea>
+      <button id="commentBtn">Add Comment</button>
+    </section>
+
+    <section id="logSection" hidden>
+      <h2>History</h2>
+      <ol id="log" class="log"></ol>
+    </section>
+  </main>
+</body>
+</html>
