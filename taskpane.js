@@ -52,14 +52,19 @@
   // ---------- read the Appendix A ----------
   async function readDocument() {
     return Word.run(async (ctx) => {
+      // Primary source: the document's own XML. It covers every field type, including checkboxes
+      // and date pickers inside table cells, which the content-control API does not report reliably.
+      const ooxml = ctx.document.body.getOoxml();
       const ccs = ctx.document.contentControls;
       ccs.load("items/tag,items/text");
       await ctx.sync();
-      const byTag = {};
-      ccs.items.forEach((cc) => { if (cc.tag) byTag[cc.tag] = (cc.text || "").trim(); });
+      const byTag = {}, checks = {}, dates = {};
+      try { readOoxml(ooxml.value, byTag, checks, dates); } catch (e) { /* fall back to the API below */ }
+      ccs.items.forEach((cc) => { if (cc.tag && !(cc.tag in byTag)) byTag[cc.tag] = (cc.text || "").trim(); });
       const t = C.tags, r = C.requirementTags;
       const val = (tag) => (isPlaceholder(byTag[tag]) ? "" : byTag[tag] || "");
-      const checked = (tag) => byTag[tag] === "☒"; // ☒
+      const checked = (tag) => (tag in checks ? checks[tag] : byTag[tag] === "☒");
+      const dateOf = (tag) => dates[tag] || toIsoDate(byTag[tag] || "");
       const doc = {
         found: Object.keys(byTag).some((k) => k.startsWith("DW_")),
         trade: val(t.trade),
@@ -74,8 +79,8 @@
         subEmail: val(t.subEmail),
         contractPrice: parseMoney(val(t.contractPrice)),
         contractPriceWords: val(t.contractPriceWords),
-        commenceDate: toIsoDate(byTag[t.commenceDate] || ""),
-        substantialDate: toIsoDate(byTag[t.substantialDate] || ""),
+        commenceDate: dateOf(t.commenceDate),
+        substantialDate: dateOf(t.substantialDate),
         requirements: {
           bonds: checked(r.bonds),
           glLimit: checked(r.gl10m) ? "$10M" : checked(r.gl5m) ? "$5M" : "None",
@@ -85,6 +90,36 @@
       };
       return doc;
     });
+  }
+
+  /** Reads every tagged content control from the document XML: text, checkbox state and date value. */
+  function readOoxml(xml, byTag, checks, dates) {
+    const W = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
+    const W14 = "http://schemas.microsoft.com/office/word/2010/wordml";
+    const dom = new DOMParser().parseFromString(xml, "application/xml");
+    const sdts = dom.getElementsByTagNameNS(W, "sdt");
+    for (const sdt of Array.from(sdts)) {
+      const pr = Array.from(sdt.children).find((c) => c.localName === "sdtPr");
+      if (!pr) continue;
+      const tagEl = Array.from(pr.children).find((c) => c.localName === "tag");
+      const tag = tagEl && (tagEl.getAttributeNS(W, "val") || tagEl.getAttribute("w:val"));
+      if (!tag) continue;
+      const content = Array.from(sdt.children).find((c) => c.localName === "sdtContent");
+      const text = content ? Array.from(content.getElementsByTagNameNS(W, "t")).map((n) => n.textContent).join("").trim() : "";
+      byTag[tag] = text;
+      const cb = pr.getElementsByTagNameNS(W14, "checkbox")[0];
+      if (cb) {
+        const ch = cb.getElementsByTagNameNS(W14, "checked")[0];
+        const v = ch && (ch.getAttributeNS(W14, "val") || ch.getAttribute("w14:val"));
+        checks[tag] = v === "1" || v === "true" || (!ch && text === "☒");
+        if (!ch) checks[tag] = text === "☒";
+      }
+      const dt = Array.from(pr.children).find((c) => c.localName === "date");
+      if (dt) {
+        const full = dt.getAttributeNS(W, "fullDate") || dt.getAttribute("w:fullDate");
+        if (full) dates[tag] = full.slice(0, 10);
+      }
+    }
   }
 
   function docProblems(d) {
