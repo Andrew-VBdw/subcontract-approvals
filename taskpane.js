@@ -320,6 +320,7 @@
   }
 
   async function submit() {
+    if (state.preview) return message("Preview only: open the Appendix A from SharePoint to submit.", "info");
     const d = state.doc;
     const est = parseMoney($("estimate").value);
     const codes = $("costCodes").value.trim();
@@ -389,7 +390,15 @@
       show("loading", false);
       renderDoc();
       if (!/^https:\/\//i.test(state.docUrl)) {
-        message("Open this Appendix A from SharePoint (or with AutoSave on) so it can be linked to the workflow.", "error");
+        // Preview mode: show the full submit form so it can be tried, but block sending.
+        state.preview = true;
+        message("Preview only: this copy isn't saved in SharePoint, so it can't be submitted. Open the Appendix A from a project folder to submit.", "info");
+        state.record = null;
+        renderStatus();
+        $("statusNote").textContent = "Preview. Submitting needs the file in SharePoint.";
+        const b = $("submitBtn");
+        b.disabled = true;
+        b.textContent = "Submit for Approval (needs SharePoint)";
         return;
       }
       await refresh();
