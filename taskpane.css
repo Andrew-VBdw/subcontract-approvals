@@ -40,3 +40,10 @@ button:disabled { opacity: .5; cursor: default; }
 .log .when { color: var(--muted); font-size: 12px; }
 .log .what { font-weight: 600; }
 .log .note { white-space: pre-wrap; }
+
+.step { border-left: 3px solid var(--line); padding: 2px 0 4px 8px; margin: 0 0 10px; }
+.step.current { border-left-color: var(--red); }
+.step-title { font-size: 12px; font-weight: 600; color: #5f6872; margin-bottom: 4px; }
+.step.current .step-title { color: var(--red); }
+.actions button .hint { display: block; font-size: 11px; color: #5f6872; }
+.actions button:disabled { opacity: .55; background: #f3f4f6; }

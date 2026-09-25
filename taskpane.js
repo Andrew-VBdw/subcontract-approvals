@@ -247,7 +247,7 @@
   };
   const myEmail = () => ((state.me && (state.me.mail || state.me.userPrincipalName)) || "").toLowerCase();
   function allowed(a) {
-    if (!a.role) return true;
+    if (!a.role || state.preview) return true;
     const me = myEmail(), g = state.region || {};
     const approver = (g.ApproverEmail || "").toLowerCase(), acct = (g.AccountingEmail || "").toLowerCase();
     if (me && me === approver) return true;
@@ -256,16 +256,51 @@
   }
   let current = null;
 
+  // Every step's buttons are always listed in workflow order; only the ones for the current stage
+  // (and the person signed in) are clickable. The rest are greyed with a note on when they unlock.
+  const STEPS = [
+    { title: "1. Approval", statuses: ["Pending Approval"], keys: ["Approve", "ReturnToDraft"], who: "Approver only" },
+    { title: "2. Trade", statuses: ["Approved", "With Trade"], keys: ["SendToTrade", "TradeAlreadyAgreed", "TradeAccepted", "TradeWantsChanges"] },
+    { title: "3. Accounting", statuses: ["With Accounting"], keys: ["AccountingComplete", "ReturnFromAccounting"], who: "Accounting only" },
+    { title: "4. Contract", statuses: ["Ready to Issue"], keys: ["BuildPackage", "SendForSignature"] },
+    { title: "5. Signature", statuses: ["Out for Signature", "Signature Issue"], keys: ["LogMarkup", "LogDispute", "Resolve"] },
+    { title: "Any time before signing", statuses: [], keys: ["Withdraw", "Cancel"] }
+  ];
+  const WHEN = {
+    Approve: "After the PM submits", ReturnToDraft: "After the PM submits",
+    SendToTrade: "After approval", TradeAlreadyAgreed: "After approval",
+    TradeAccepted: "After it's sent to the trade", TradeWantsChanges: "After it's sent to the trade",
+    AccountingComplete: "After the trade accepts", ReturnFromAccounting: "After the trade accepts",
+    BuildPackage: "After accounting is complete", SendForSignature: "After the package is built",
+    LogMarkup: "While out for signature", LogDispute: "While out for signature", Resolve: "If there's a signature issue",
+    Withdraw: "After submitting, until signed", Cancel: "Until signed"
+  };
+
   function renderActions() {
     const box = $("actions"); box.innerHTML = "";
     const r = state.record;
-    if (!r) { show("actionSection", false); return; }
-    Object.entries(ACTIONS).filter(([, a]) => a.statuses.includes(r.Status) && allowed(a) && (!a.needsPackage || r.PackageUrl)).forEach(([key, a]) => {
-      const b = document.createElement("button"); b.textContent = a.label;
-      b.onclick = () => openAction(key); box.append(b);
+    const status = r ? r.Status : "Not submitted";
+    STEPS.forEach((step) => {
+      const g = document.createElement("div");
+      g.className = "step" + (step.statuses.includes(status) ? " current" : "");
+      const h = document.createElement("div"); h.className = "step-title"; h.textContent = step.title;
+      g.append(h);
+      step.keys.forEach((key) => {
+        const a = ACTIONS[key];
+        const stageOk = !!r && a.statuses.includes(status) && (!a.needsPackage || r.PackageUrl);
+        const roleOk = allowed(a);
+        const b = document.createElement("button");
+        b.innerHTML = '<span class="lbl"></span><span class="hint"></span>';
+        b.querySelector(".lbl").textContent = a.label;
+        b.disabled = !(stageOk && roleOk);
+        if (b.disabled) b.querySelector(".hint").textContent = stageOk ? (step.who || "Not available to you") : WHEN[key] || "";
+        b.onclick = () => openAction(key);
+        g.append(b);
+      });
+      box.append(g);
     });
     $("actionForm").hidden = true;
-    show("actionSection", box.children.length > 0);
+    show("actionSection", !!state.doc && state.doc.found !== false);
   }
 
   function openAction(key) {
@@ -307,6 +342,7 @@
     const file = $("actionFile").files[0];
     if (a.noteRequired && !note && !(current === "LogDispute" && file)) return message("Please add a note.", "error");
     if (a.fileRequired && !file) return message("Please attach the email or file.", "error");
+    if (state.preview) { $("actionForm").hidden = true; return message(`Preview: "${a.label}" would be recorded in the log and move this subcontract on. Nothing was sent.`, "info"); }
     $("actionGo").disabled = true;
     try {
       if (current === "BuildPackage") { await buildPackage(); }
@@ -411,6 +447,30 @@
     await loadLog();
   }
 
+  // Preview only: pick a stage to see the buttons each person gets at that point.
+  function setupStagePreview() {
+    const box = document.createElement("section");
+    box.innerHTML = '<h2>Preview a stage</h2><p class="muted">See the buttons at each step. Nothing is sent.</p>';
+    const sel = document.createElement("select");
+    ["Not submitted", "Pending Approval", "Approved", "With Trade", "With Accounting", "Ready to Issue",
+      "Ready to Issue (package built)", "Out for Signature", "Signature Issue", "Executed"].forEach((t) => {
+      const o = document.createElement("option"); o.textContent = t; sel.append(o);
+    });
+    sel.onchange = () => {
+      const v = sel.value;
+      message("", "info");
+      if (v === "Not submitted") { state.record = null; renderStatus(); $("submitBtn").disabled = true; return; }
+      const built = v.includes("package built");
+      state.record = { Title: state.doc.subcontractNumber || "Preview", Status: built ? "Ready to Issue" : v,
+        ContractValue: state.doc.contractPrice, PackageUrl: built ? "#" : "" };
+      renderStatus();
+      show("logSection", false);
+      $("statusNote").textContent = "Preview of this stage. Approver and accounting buttons are shown together here; in real use each person only sees their own.";
+    };
+    box.append(sel);
+    $("statusSection").before(box);
+  }
+
   async function start() {
     try {
       state.docUrl = Office.context.document.url || "";
@@ -427,6 +487,7 @@
         const b = $("submitBtn");
         b.disabled = true;
         b.textContent = "Submit for Approval (needs SharePoint)";
+        setupStagePreview();
         return;
       }
       await refresh();
