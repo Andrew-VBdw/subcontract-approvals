@@ -8,10 +8,10 @@
   <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@azure/msal-browser@4.30.0/lib/msal-browser.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
-  <script src="config.js?v=3"></script>
-  <script src="graph.js?v=3"></script>
+  <script src="config.js?v=4"></script>
+  <script src="graph.js?v=4"></script>
   <script src="package-builder.js?v=2"></script>
-  <script src="taskpane.js?v=3"></script>
+  <script src="taskpane.js?v=4"></script>
 </head>
 <body>
   <header>
@@ -57,6 +57,9 @@
         <div id="actionPrompt"></div>
         <textarea id="actionNote" rows="3" placeholder="Notes"></textarea>
         <select id="actionChoice" hidden></select>
+        <label id="codesLabel" hidden>Cost code(s)
+          <input id="actionCodes" type="text" />
+        </label>
         <label id="fileLabel" hidden>Attach email or file (.msg, .pdf)
           <input id="actionFile" type="file" />
         </label>

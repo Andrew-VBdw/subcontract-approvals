@@ -7,9 +7,9 @@
   const C = window.DW_CONFIG;
   const $ = (id) => document.getElementById(id);
   const PRE_EXECUTED = ["Draft", "Pending Approval", "Approved", "With Trade", "With Accounting",
-    "With CA", "Out for Signature", "Signature Issue"];
+    "Ready to Issue", "Out for Signature", "Signature Issue"];
 
-  const state = { doc: null, req: null, docUrl: null, record: null, project: null, me: null };
+  const state = { doc: null, req: null, docUrl: null, record: null, project: null, region: null, me: null };
 
   // ---------- helpers ----------
   function show(id, on) { $(id).hidden = !on; }
@@ -38,7 +38,9 @@
     el.innerHTML = "";
     rows.filter((r) => r[1] !== undefined && r[1] !== null && r[1] !== "").forEach(([k, v]) => {
       const dt = document.createElement("dt"); dt.textContent = k;
-      const dd = document.createElement("dd"); dd.textContent = v;
+      const dd = document.createElement("dd");
+      if (v && typeof v === "object" && v.link) { const a = document.createElement("a"); a.href = v.link; a.target = "_blank"; a.textContent = v.text; dd.append(a); }
+      else dd.textContent = v;
       el.append(dt, dd);
     });
   }
@@ -160,6 +162,12 @@
       const p = await DWGraph.items("projects", `fields/ProjectNumber eq '${DWGraph.esc(state.doc.projectNumber)}'`);
       state.project = p[0] || null;
     }
+    state.region = null;
+    if (state.project && state.project.RegionLookupId) {
+      const g = await DWGraph.items("regions");
+      state.region = g.find((x) => String(x._id) === String(state.project.RegionLookupId)) || null;
+    }
+    if (!state.me) { try { state.me = await DWGraph.me(); } catch (e) { /* role buttons stay hidden */ } }
   }
 
   async function loadLog() {
@@ -187,7 +195,8 @@
     fieldList($("recordFields"), r ? [
       ["Estimate carried", money(r.EstimateCarried)], ["Contract value", money(r.ContractValue)],
       ["Delta", r.Delta != null ? money(r.Delta) : ""], ["Cost codes", r.CostCodes],
-      ["Approved version", r.ApprovedVersion], ["Envelope", r.EnvelopeId], ["Issue", r.IssueType]
+      ["Approved version", r.ApprovedVersion], ["CCA-1 package", r.PackageUrl ? { link: r.PackageUrl.Url || r.PackageUrl, text: "Open PDF" } : ""],
+      ["Envelope", r.EnvelopeId], ["Issue", r.IssueType]
     ] : []);
     show("statusSection", true);
 
@@ -216,26 +225,42 @@
   }
 
   // ---------- actions ----------
+  // role: "approver" and "accounting" buttons only show for that person (the approver sees everything).
+  // Everything else shows for anyone working on the file; the log records who clicked.
   const ACTIONS = {
+    Approve: { label: "Approve", statuses: ["Pending Approval"], role: "approver", prompt: "Approve this Appendix A. Add a note if you like." },
+    ReturnToDraft: { label: "Return to Draft", statuses: ["Pending Approval"], role: "approver", prompt: "Send it back to the PM. What needs to change?", noteRequired: true },
     SendToTrade: { label: "Send to Trade", statuses: ["Approved"], prompt: "Email a PDF of the approved Appendix A to " },
     TradeAlreadyAgreed: { label: "Trade Already Agreed", statuses: ["Approved"], prompt: "Skip the trade step. Attach the email where the trade agreed.", file: true, fileRequired: true },
     TradeAccepted: { label: "Trade Accepted", statuses: ["With Trade"], prompt: "Attach the trade's acceptance email.", file: true, fileRequired: true },
     TradeWantsChanges: { label: "Trade Wants Changes", statuses: ["With Trade"], prompt: "Returns to Draft. Describe what the trade wants changed.", noteRequired: true, file: true },
-    BuildPackage: { label: "Build CCA Package", statuses: ["With CA"], prompt: "Fill the project CCA-1, insert this Appendix A before Appendix B, and create the DocuSign draft." },
+    AccountingComplete: { label: "Accounting Complete", statuses: ["With Accounting"], role: "accounting", prompt: "Confirm the subcontract is entered. Correct the cost codes here if needed.", codes: true },
+    ReturnFromAccounting: { label: "Send Back to PM", statuses: ["With Accounting"], role: "accounting", prompt: "What does the PM need to fix?", noteRequired: true },
+    BuildPackage: { label: "Build CCA-1 Package", statuses: ["Ready to Issue"], prompt: "Fill the project CCA-1 and insert this Appendix A before Appendix B. You can review the PDF before sending." },
+    SendForSignature: { label: "Send for Signature", statuses: ["Ready to Issue"], needsPackage: true, prompt: "Send the package through DocuSign to the subcontractor's signer, then the Dawson Wallace signer." },
     LogMarkup: { label: "Log Markup", statuses: ["Out for Signature"], prompt: "Attach the trade's markup. The open envelope will be voided.", file: true, fileRequired: true },
     LogDispute: { label: "Log Dispute", statuses: ["Out for Signature"], prompt: "Attach the email or summarize the call. The open envelope will be voided.", file: true, noteRequired: true },
     Resolve: { label: "Resolve Issue", statuses: ["Signature Issue"], prompt: "What was agreed, and where does it go next?", noteRequired: true,
       choices: ["Reissue unchanged", "Appendix A must change", "Cancel subcontract"] },
-    Withdraw: { label: "Withdraw to Draft", statuses: PRE_EXECUTED.filter((s) => s !== "Draft"), prompt: "Pulls this back to Draft for your changes. It will need approval again.", noteRequired: true },
-    Cancel: { label: "Cancel Subcontract", statuses: PRE_EXECUTED, prompt: "This subcontract is not proceeding. Any open envelope will be voided.", noteRequired: true }
+    Withdraw: { label: "Withdraw to Draft", statuses: PRE_EXECUTED.filter((s) => s !== "Draft"), prompt: "Pulls this back to Draft for your changes. Any open envelope is voided and it will need approval again. Logged with your note.", noteRequired: true },
+    Cancel: { label: "Cancel Subcontract", statuses: PRE_EXECUTED, prompt: "This subcontract is not proceeding. Any open envelope will be voided. Logged with your note.", noteRequired: true }
   };
+  const myEmail = () => ((state.me && (state.me.mail || state.me.userPrincipalName)) || "").toLowerCase();
+  function allowed(a) {
+    if (!a.role) return true;
+    const me = myEmail(), g = state.region || {};
+    const approver = (g.ApproverEmail || "").toLowerCase(), acct = (g.AccountingEmail || "").toLowerCase();
+    if (me && me === approver) return true;
+    if (a.role === "accounting") return me && me === acct;
+    return false;
+  }
   let current = null;
 
   function renderActions() {
     const box = $("actions"); box.innerHTML = "";
     const r = state.record;
     if (!r) { show("actionSection", false); return; }
-    Object.entries(ACTIONS).filter(([, a]) => a.statuses.includes(r.Status)).forEach(([key, a]) => {
+    Object.entries(ACTIONS).filter(([, a]) => a.statuses.includes(r.Status) && allowed(a) && (!a.needsPackage || r.PackageUrl)).forEach(([key, a]) => {
       const b = document.createElement("button"); b.textContent = a.label;
       b.onclick = () => openAction(key); box.append(b);
     });
@@ -249,6 +274,8 @@
     $("actionNote").value = ""; $("actionFile").value = "";
     $("actionNote").hidden = key === "SendToTrade" || key === "BuildPackage";
     $("fileLabel").hidden = !a.file;
+    $("codesLabel").hidden = !a.codes;
+    if (a.codes) $("actionCodes").value = (state.record && state.record.CostCodes) || "";
     const sel = $("actionChoice"); sel.innerHTML = ""; sel.hidden = !a.choices;
     (a.choices || []).forEach((c) => { const o = document.createElement("option"); o.textContent = c; sel.append(o); });
     $("actionForm").hidden = false;
@@ -286,7 +313,8 @@
       else {
         message("Working…", "info");
         const link = await uploadAttachment(file);
-        await sendRequest(current, { note, attachmentUrl: link, choice: a.choices ? $("actionChoice").value : "" });
+        await sendRequest(current, { note, attachmentUrl: link, choice: a.choices ? $("actionChoice").value : "",
+          costCodes: a.codes ? $("actionCodes").value.trim() : undefined });
         message(`${a.label} sent. The status will update in a minute.`, "ok");
       }
       $("actionForm").hidden = true;
@@ -315,7 +343,7 @@
     const folder = state.project.PackagesFolder || "Subcontracts/Packages";
     const up = await DWGraph.upload(di.parentReference.driveId, folder, DWPackage.packageFileName(sub), out.pdfBytes);
     await sendRequest("PackageBuilt", { packageUrl: up.webUrl, packageDriveId: di.parentReference.driveId, packageItemId: up.id, warnings: out.warnings });
-    message("Package saved. The DocuSign draft will be ready for review shortly." +
+    message("Package saved to " + folder + ". Open it from Status to review, then click Send for Signature." +
       (out.warnings.length ? " Check: " + out.warnings.join(" ") : ""), out.warnings.length ? "info" : "ok");
   }
 
