@@ -62,9 +62,10 @@
     if (listIds[key]) return listIds[key];
     const sid = await hubSiteId();
     const name = C.lists[key];
-    const r = await call("GET", `/sites/${sid}/lists?$filter=displayName eq '${name.replace(/'/g, "''")}'&$select=id,displayName`);
-    if (!r.value.length) throw new Error(`List "${name}" not found on the hub site.`);
-    listIds[key] = r.value[0].id;
+    const r = await call("GET", `/sites/${sid}/lists?$select=id,displayName&$top=500`);
+    const hit = r.value.find((l) => l.displayName === name);
+    if (!hit) throw new Error(`List "${name}" not found on the site.`);
+    listIds[key] = hit.id;
     return listIds[key];
   }
 

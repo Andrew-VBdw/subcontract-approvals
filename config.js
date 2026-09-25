@@ -5,22 +5,23 @@
 window.DW_CONFIG = {
   // SET ME: your SharePoint host, e.g. "dawsonwallace.sharepoint.com"
   sharepointHost: "dawsonwallace.sharepoint.com",
-  // SET ME: server-relative path of the hub site created by setup-lists.ps1
-  hubSitePath: "/sites/ContractsHub",
+  // Site that holds the "Contracts - " lists
+  hubSitePath: "/sites/CGYProjects",
   // SET ME: Application (client) ID of the Entra app registration "DW Subcontract Approvals"
   clientId: "00000000-0000-0000-0000-000000000000",
 
   graphScopes: ["Sites.ReadWrite.All", "Files.ReadWrite.All", "User.Read"],
 
   lists: {
-    regions: "Regions",
-    projects: "Projects",
-    subcontracts: "Subcontracts",
-    log: "Approval Log",
-    requests: "Requests",
-    complianceTemplate: "Compliance Template",
-    complianceItems: "Compliance Items",
-    settings: "App Settings"
+    regions: "Contracts - Regions",
+    projects: "Contracts - Projects",
+    subcontracts: "Contracts - Subcontracts",
+    log: "Contracts - Approval Log",
+    requests: "Contracts - Requests",
+    complianceTemplate: "Contracts - Compliance Template",
+    complianceItems: "Contracts - Compliance Items",
+    settings: "Contracts - App Settings",
+    executed: "Contracts - Executed Subcontracts"
   },
 
   // Word content control tags in the Appendix A templates
