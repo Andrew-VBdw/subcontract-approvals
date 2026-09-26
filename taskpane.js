@@ -211,7 +211,7 @@
       if (r.EstimateCarried != null && !$("estimate").value) $("estimate").value = Number(r.EstimateCarried).toFixed(2);
       if (r.CostCodes && !$("costCodes").value) $("costCodes").value = r.CostCodes;
     }
-    const projectReady = !!state.project && state.project.Active !== false;
+    const projectReady = state.channel === "doc" || (!!state.project && state.project.Active !== false);
     show("submitSection", canSubmit && docProblems(state.doc).length === 0 && (projectReady || state.preview));
     if (!state.preview && !projectReady && !r) {
       $("statusNote").textContent = `Project ${state.doc.projectNumber || "(blank)"} isn't set up for approvals yet. The pilot is running on 26-205 MAPEI only.`;
@@ -245,7 +245,7 @@
     TradeWantsChanges: { label: "Trade Wants Changes", statuses: ["With Trade"], prompt: "Returns to Draft. Describe what the trade wants changed.", noteRequired: true, file: true },
     AccountingComplete: { label: "Accounting Complete", statuses: ["With Accounting"], role: "accounting", prompt: "Confirm the subcontract is entered. Correct the cost codes here if needed.", codes: true },
     ReturnFromAccounting: { label: "Send Back to PM", statuses: ["With Accounting"], role: "accounting", prompt: "What does the PM need to fix?", noteRequired: true },
-    BuildPackage: { label: "Build CCA-1 Package", statuses: ["Ready to Issue"], prompt: "Fill the project CCA-1 and insert this Appendix A before Appendix B. You can review the PDF before sending." },
+    BuildPackage: { needsGraph: true, label: "Build CCA-1 Package", statuses: ["Ready to Issue"], prompt: "Fill the project CCA-1 and insert this Appendix A before Appendix B. You can review the PDF before sending." },
     SendForSignature: { label: "Send for Signature", statuses: ["Ready to Issue"], needsPackage: true, prompt: "Send the package through DocuSign to the subcontractor's signer, then the Dawson Wallace signer." },
     LogMarkup: { label: "Log Markup", statuses: ["Out for Signature"], prompt: "Attach the trade's markup. The open envelope will be voided.", file: true, fileRequired: true },
     LogDispute: { label: "Log Dispute", statuses: ["Out for Signature"], prompt: "Attach the email or summarize the call. The open envelope will be voided.", file: true, noteRequired: true },
@@ -256,7 +256,7 @@
   };
   const myEmail = () => ((state.me && (state.me.mail || state.me.userPrincipalName)) || "").toLowerCase();
   function allowed(a) {
-    if (!a.role || state.preview) return true;
+    if (!a.role || state.preview || state.channel === "doc") return true;
     const me = myEmail(), g = state.region || {};
     const approver = (g.ApproverEmail || "").toLowerCase(), acct = (g.AccountingEmail || "").toLowerCase();
     if (me && me === approver) return true;
@@ -297,12 +297,15 @@
       step.keys.forEach((key) => {
         const a = ACTIONS[key];
         const stageOk = !!r && a.statuses.includes(status) && (!a.needsPackage || r.PackageUrl);
-        const roleOk = allowed(a);
+        const roleOk = allowed(a) && !(a.needsGraph && state.channel === "doc") && !state.pending;
         const b = document.createElement("button");
         b.innerHTML = '<span class="lbl"></span><span class="hint"></span>';
         b.querySelector(".lbl").textContent = a.label;
         b.disabled = !(stageOk && roleOk);
-        if (b.disabled) b.querySelector(".hint").textContent = stageOk ? (step.who || "Not available to you") : WHEN[key] || "";
+        if (b.disabled) b.querySelector(".hint").textContent = !stageOk ? (WHEN[key] || "")
+          : state.pending ? "Waiting for the last action to process"
+          : (a.needsGraph && state.channel === "doc") ? "Needs the SharePoint connection (not set up yet)"
+          : (step.who || "Not available to you");
         b.onclick = () => openAction(key);
         g.append(b);
       });
@@ -330,7 +333,7 @@
   const docFolder = (di) => decodeURIComponent(((di.parentReference && di.parentReference.path) || "").split("root:")[1] || "").replace(/^\/+/, "");
 
   async function uploadAttachment(file) {
-    if (!file) return "";
+    if (!file || state.channel === "doc") return "";
     const di = await DWGraph.driveItemFromUrl(state.docUrl);
     const folder = (state.project && state.project.CorrespondenceFolder) || docFolder(di);
     const bytes = new Uint8Array(await file.arrayBuffer());
@@ -340,6 +343,11 @@
   }
 
   async function sendRequest(action, payload) {
+    if (state.channel === "doc") {
+      await DWDoc.write({ id: "r" + Date.now(), action, subcontractNumber: state.doc.subcontractNumber,
+        projectNumber: state.doc.projectNumber, documentUrl: state.docUrl, payload: payload || {}, sentAt: new Date().toISOString() });
+      return;
+    }
     await DWGraph.createItem("requests", {
       Title: action,
       SubcontractNumber: state.doc.subcontractNumber,
@@ -354,7 +362,7 @@
     const note = $("actionNote").value.trim();
     const file = $("actionFile").files[0];
     if (a.noteRequired && !note && !(current === "LogDispute" && file)) return message("Please add a note.", "error");
-    if (a.fileRequired && !file) return message("Please attach the email or file.", "error");
+    if (a.fileRequired && !file && state.channel !== "doc") return message("Please attach the email or file.", "error");
     if (state.preview) { $("actionForm").hidden = true; return message(`Preview: "${a.label}" would be recorded in the log and move this subcontract on. Nothing was sent.`, "info"); }
     $("actionGo").disabled = true;
     try {
@@ -367,7 +375,7 @@
         message(`${a.label} sent. The status will update in a minute.`, "ok");
       }
       $("actionForm").hidden = true;
-      pollForChange();
+      if (state.channel === "doc") docSent(a.label); else pollForChange();
     } catch (e) {
       message("Could not complete: " + e.message, "error");
     } finally { $("actionGo").disabled = false; }
@@ -422,7 +430,7 @@
       });
       message("Submitted. The approver has been notified, and you'll get a confirmation email.", "ok");
       show("submitSection", false);
-      pollForChange();
+      if (state.channel === "doc") docSent("Submit"); else pollForChange();
     } catch (e) {
       message("Could not submit: " + e.message, "error");
     } finally { $("submitBtn").disabled = false; }
@@ -435,7 +443,7 @@
       await sendRequest("Comment", { note: text });
       $("comment").value = "";
       message("Comment added.", "ok");
-      setTimeout(refresh, 8000);
+      if (state.channel === "doc") docSent("Comment"); else setTimeout(refresh, 8000);
     } catch (e) { message("Could not add comment: " + e.message, "error"); }
   }
 
@@ -486,6 +494,35 @@
     $("statusSection").before(box);
   }
 
+  // ---------- document channel (no app registration) ----------
+  function docSent(label) {
+    state.pending = true;
+    message(`${label} saved into the file. Power Automate processes it within a couple of minutes and emails you. Close and reopen the file to see the new status here.`, "ok");
+    renderActions();
+  }
+
+  async function loadFromDoc(d) {
+    state.channel = "doc";
+    state.pending = !!(d.request && d.request.trim());
+    state.record = d.status ? { Title: state.doc.subcontractNumber, Status: d.status } : null;
+    renderStatus();
+    const list = $("log"); list.innerHTML = "";
+    (d.history || "").split(/\r?\n/).filter((l) => l.trim()).reverse().forEach((line) => {
+      const [when, who, what, note] = line.split(" | ");
+      const li = document.createElement("li");
+      li.innerHTML = `<div class="what"></div><div class="when"></div><div class="note"></div>`;
+      li.querySelector(".what").textContent = what || line;
+      li.querySelector(".when").textContent = [when, who].filter(Boolean).join(" · ");
+      li.querySelector(".note").textContent = note || "";
+      list.append(li);
+    });
+    show("logSection", list.children.length > 0);
+    const tb = $("testBanner");
+    if (tb && /^26-205/.test(state.doc.subcontractNumber || "")) { tb.hidden = false; tb.textContent = "TEST MODE: emails go only to Andrew's work and Gmail addresses."; }
+    if (state.pending) message("The last action is still being processed. Reopen the file in a minute or two to see the result.", "info");
+    $("statusNote").textContent = d.status ? "Status as of when this file was opened." : "This Appendix A has not been submitted yet.";
+  }
+
   async function start() {
     try {
       state.docUrl = Office.context.document.url || "";
@@ -493,6 +530,11 @@
       show("loading", false);
       renderDoc();
       const notConnected = /^0{8}-/.test(C.clientId || "0");
+      if (/^https:\/\//i.test(state.docUrl) && notConnected) {
+        let d = null;
+        try { d = await DWDoc.read(); } catch (e) { d = null; }
+        if (d) { await loadFromDoc(d); return; }
+      }
       if (!/^https:\/\//i.test(state.docUrl) || notConnected) {
         // Preview mode: show the full submit form so it can be tried, but block sending.
         state.preview = true;
