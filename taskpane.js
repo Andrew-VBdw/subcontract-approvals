@@ -206,7 +206,11 @@
       if (r.EstimateCarried != null && !$("estimate").value) $("estimate").value = Number(r.EstimateCarried).toFixed(2);
       if (r.CostCodes && !$("costCodes").value) $("costCodes").value = r.CostCodes;
     }
-    show("submitSection", canSubmit && docProblems(state.doc).length === 0);
+    const projectReady = !!state.project && state.project.Active !== false;
+    show("submitSection", canSubmit && docProblems(state.doc).length === 0 && (projectReady || state.preview));
+    if (!state.preview && !projectReady && !r) {
+      $("statusNote").textContent = `Project ${state.doc.projectNumber || "(blank)"} isn't set up for approvals yet. The pilot is running on 26-205 MAPEI only.`;
+    }
     updateDelta();
     renderActions();
     show("commentSection", !!r);
@@ -316,10 +320,13 @@
     $("actionForm").hidden = false;
   }
 
+  // Folder holding this Appendix A (e.g. Sub-Files/03200 Rebar (Shaw Steel)/Contract/Internal)
+  const docFolder = (di) => decodeURIComponent(((di.parentReference && di.parentReference.path) || "").split("root:")[1] || "").replace(/^\/+/, "");
+
   async function uploadAttachment(file) {
     if (!file) return "";
     const di = await DWGraph.driveItemFromUrl(state.docUrl);
-    const folder = (state.project && state.project.CorrespondenceFolder) || "Subcontracts/Correspondence";
+    const folder = (state.project && state.project.CorrespondenceFolder) || docFolder(di);
     const bytes = new Uint8Array(await file.arrayBuffer());
     const name = `${state.record.Title} ${new Date().toISOString().slice(0, 10)} ${file.name}`;
     const up = await DWGraph.upload(di.parentReference.driveId, folder, name, bytes);
@@ -376,7 +383,7 @@
       pmName: r.PMName || "", pmEmail: r.PMEmail || ""
     };
     const out = await DWPackage.buildPackage({ ccaTemplateBytes: tplBytes, appendixAPdfBytes: appA, sub, ccaPageCount: C.ccaPageCount });
-    const folder = state.project.PackagesFolder || "Subcontracts/Packages";
+    const folder = state.project.PackagesFolder || docFolder(di);
     const up = await DWGraph.upload(di.parentReference.driveId, folder, DWPackage.packageFileName(sub), out.pdfBytes);
     await sendRequest("PackageBuilt", { packageUrl: up.webUrl, packageDriveId: di.parentReference.driveId, packageItemId: up.id, warnings: out.warnings });
     message("Package saved to " + folder + ". Open it from Status to review, then click Send for Signature." +
