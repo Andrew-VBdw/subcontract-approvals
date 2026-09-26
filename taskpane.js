@@ -167,6 +167,11 @@
       const g = await DWGraph.items("regions");
       state.region = g.find((x) => String(x._id) === String(state.project.RegionLookupId)) || null;
     }
+    if (!state.settings) {
+      try { state.settings = Object.fromEntries((await DWGraph.items("settings")).map((i) => [i.Title, i.SettingValue])); }
+      catch (e) { state.settings = {}; }
+    }
+    state.test = /^on$/i.test(state.settings.TestMode || "");
     if (!state.me) { try { state.me = await DWGraph.me(); } catch (e) { /* role buttons stay hidden */ } }
   }
 
@@ -309,7 +314,8 @@
 
   function openAction(key) {
     const a = ACTIONS[key]; current = key;
-    $("actionPrompt").textContent = a.prompt + (key === "SendToTrade" ? (state.doc.subEmail || "the subcontractor") + "." : "");
+    const tradeTo = state.test ? state.settings.TestExternalEmail + " (TEST MODE, instead of " + (state.doc.subEmail || "the subcontractor") + ")" : (state.doc.subEmail || "the subcontractor");
+    $("actionPrompt").textContent = a.prompt + (key === "SendToTrade" ? tradeTo + "." : "");
     $("actionNote").value = ""; $("actionFile").value = "";
     $("actionNote").hidden = key === "SendToTrade" || key === "BuildPackage";
     $("fileLabel").hidden = !a.file;
@@ -450,6 +456,8 @@
 
   async function refresh() {
     await loadRecord();
+    const tb = $("testBanner");
+    if (tb) { tb.hidden = !state.test; tb.textContent = state.test ? `TEST MODE: all emails and DocuSign go only to ${state.settings.TestInternalEmail} and ${state.settings.TestExternalEmail}.` : ""; }
     renderStatus();
     await loadLog();
   }
