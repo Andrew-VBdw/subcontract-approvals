@@ -492,13 +492,16 @@
       state.doc = await readDocument();
       show("loading", false);
       renderDoc();
-      if (!/^https:\/\//i.test(state.docUrl)) {
+      const notConnected = /^0{8}-/.test(C.clientId || "0");
+      if (!/^https:\/\//i.test(state.docUrl) || notConnected) {
         // Preview mode: show the full submit form so it can be tried, but block sending.
         state.preview = true;
-        message("Preview only: this copy isn't saved in SharePoint, so it can't be submitted. Open the Appendix A from a project folder to submit.", "info");
+        message(notConnected
+          ? "Preview only: the panel isn't connected to SharePoint yet (waiting on the app registration). Reading the Appendix A works; use Preview a stage below to click through."
+          : "Preview only: this copy isn't saved in SharePoint, so it can't be submitted. Open the Appendix A from a project folder to submit.", "info");
         state.record = null;
         renderStatus();
-        $("statusNote").textContent = "Preview. Submitting needs the file in SharePoint.";
+        $("statusNote").textContent = notConnected ? "Preview. Submitting needs the SharePoint connection." : "Preview. Submitting needs the file in SharePoint.";
         const b = $("submitBtn");
         b.disabled = true;
         b.textContent = "Submit for Approval (needs SharePoint)";
