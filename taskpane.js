@@ -196,7 +196,7 @@
     const status = r ? r.Status : "Not submitted";
     $("statusBadge").textContent = status;
     $("statusBadge").className = r ? badgeClass(status) : "badge";
-    $("statusNote").textContent = r ? "" : "This Appendix A has not been submitted yet.";
+    $("statusNote").textContent = r ? (NEXT[r.Status] || "") : NOT_SUBMITTED;
     fieldList($("recordFields"), r ? [
       ["Estimate carried", money(r.EstimateCarried)], ["Contract value", money(r.ContractValue)],
       ["Delta", r.Delta != null ? money(r.Delta) : ""], ["Cost codes", r.CostCodes],
@@ -236,14 +236,14 @@
   // role: "approver" and "accounting" buttons only show for that person (the approver sees everything).
   // Everything else shows for anyone working on the file; the log records who clicked.
   const ACTIONS = {
-    Approve: { label: "Approve", statuses: ["Pending Approval"], role: "approver", prompt: "Approve this Appendix A. Add a note if you like." },
-    ReturnToDraft: { label: "Return to Draft", statuses: ["Pending Approval"], role: "approver", prompt: "Send it back to the PM. What needs to change?", noteRequired: true },
+    Approve: { label: "Approve", statuses: ["Pending Approval"], role: "approver", prompt: "Moves it to Approved and emails the PM to send it to the trade. Any open approval email for it cancels itself. Add a note if you like." },
+    ReturnToDraft: { label: "Return to Draft", statuses: ["Pending Approval"], role: "approver", prompt: "Returns it to Draft for the PM to revise and resubmit. Any open approval email for it cancels itself. What needs to change?", noteRequired: true },
     SendToTrade: { label: "Send to Trade", statuses: ["Approved"], prompt: "Email the approved Appendix A (Word file) to " },
-    TradeAlreadyAgreed: { label: "Trade Already Agreed", statuses: ["Approved"], prompt: "Confirm the trade has already agreed to this Appendix A. This skips sending it to them. Add a note if you like." },
-    TradeAccepted: { label: "Trade Accepted", statuses: ["With Trade"], prompt: "Confirm the trade has accepted this Appendix A. Add a note if you like." },
-    TradeWantsChanges: { label: "Trade Wants Changes", statuses: ["With Trade"], prompt: "Returns this to Draft. Add a note if you like." },
-    AccountingComplete: { label: "Accounting Complete", statuses: ["With Accounting"], role: "accounting", prompt: "Confirm the subcontract is entered. If accounting changed the subcontract number or cost codes, correct them here. A new number is also updated in this Appendix A.", codes: true, number: true },
-    ReturnFromAccounting: { label: "Send Back to PM", statuses: ["With Accounting"], role: "accounting", prompt: "What does the PM need to fix?", noteRequired: true },
+    TradeAlreadyAgreed: { label: "Trade Already Agreed", statuses: ["Approved"], prompt: "Skips sending it to the trade and moves it to With Accounting. Accounting gets an email to enter it. Add a note if you like." },
+    TradeAccepted: { label: "Trade Accepted", statuses: ["With Trade"], prompt: "Moves it to With Accounting. Accounting gets an email to enter it. Add a note if you like." },
+    TradeWantsChanges: { label: "Trade Wants Changes", statuses: ["With Trade"], prompt: "Returns it to Draft for the PM to revise and resubmit. Add a note if you like." },
+    AccountingComplete: { label: "Accounting Complete", statuses: ["With Accounting"], role: "accounting", prompt: "Moves it to Ready to Issue and emails the PM to build the CCA-1 package. Any open accounting email for it cancels itself. If accounting changed the subcontract number or cost codes, correct them here. A new number is also updated in this Appendix A.", codes: true, number: true },
+    ReturnFromAccounting: { label: "Send Back to PM", statuses: ["With Accounting"], role: "accounting", prompt: "Returns it to Draft for the PM to fix and resubmit. Any open accounting email for it cancels itself. What does the PM need to fix?", noteRequired: true },
     BuildPackage: { needsGraph: true, label: "Build CCA-1 Package", statuses: ["Ready to Issue"], prompt: "Fill the project CCA-1 and insert this Appendix A before Appendix B. You can review the PDF before sending." },
     SendForSignature: { label: "Send for Signature", statuses: ["Ready to Issue"], needsPackage: true, prompt: "Send the package through DocuSign to the subcontractor's signer, then the Dawson Wallace signer." },
     LogMarkup: { label: "Log Markup", statuses: ["Out for Signature"], prompt: "Attach the trade's markup. The open envelope will be voided.", file: true, fileRequired: true },
@@ -563,6 +563,21 @@
     $("statusSection").before(box);
   }
 
+  // What happens next at each status, shown under the status so everyone knows whose move it is.
+  const NEXT = {
+    "Draft": "Next: the PM revises the Appendix A and resubmits it for approval.",
+    "Pending Approval": "Next: the approver clicks Approve in the Power Automate approval email (or here), or returns it to the PM here.",
+    "Approved": "Next: the PM clicks Send to Trade, or Trade Already Agreed if the trade has already agreed to it.",
+    "With Trade": "Next: when the trade replies, the PM clicks Trade Accepted or Trade Wants Changes.",
+    "With Accounting": "Next: accounting enters the subcontract and clicks Accounting Complete in the Power Automate approval email (or here), or sends it back to the PM here.",
+    "Ready to Issue": "Next: the PM builds the CCA-1 package and sends it for signature (this step is still being built).",
+    "Out for Signature": "Next: waiting on signatures through DocuSign.",
+    "Signature Issue": "Next: the PM resolves the signature issue here.",
+    "Executed": "Done: the subcontract is signed.",
+    "Cancelled": "Nothing further: this subcontract is cancelled."
+  };
+  const NOT_SUBMITTED = "Not submitted yet. Submitting sends it to the approver, who gets an approval email with Approve buttons.";
+
   // ---------- document channel (no app registration) ----------
   function docSent(label) {
     message(`${label} done. It's logged and the emails go out within a minute or two. You can keep working.`, "ok");
@@ -571,7 +586,7 @@
   function showDocState(status, history) {
     state.record = status ? { Title: state.doc.subcontractNumber, Status: status } : null;
     renderStatus();
-    $("statusNote").textContent = status ? "Decisions made from an approval email show here once everyone has closed the file." : "This Appendix A has not been submitted yet.";
+    $("statusNote").textContent = status ? `${NEXT[status] || ""} Decisions made from an approval email show here once everyone has closed the file.`.trim() : NOT_SUBMITTED;
     const list = $("log"); list.innerHTML = "";
     (history || "").split(/\r?\n/).filter((l) => l.trim()).reverse().forEach((line) => {
       const [when, who, what, note] = line.split(" | ");
