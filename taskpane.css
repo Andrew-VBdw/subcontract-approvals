@@ -47,3 +47,8 @@ button:disabled { opacity: .5; cursor: default; }
 .step.current .step-title { color: var(--red); }
 .actions button .hint { display: block; font-size: 11px; color: #5f6872; }
 .actions button:disabled { opacity: .55; background: #f3f4f6; }
+
+#actions button.chosen { outline: 2px solid #b5292f; }
+#actions .action-form { margin: 6px 0 10px; }
+
+[hidden] { display: none !important; }

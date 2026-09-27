@@ -239,9 +239,9 @@
   const ACTIONS = {
     Approve: { label: "Approve", statuses: ["Pending Approval"], role: "approver", prompt: "Approve this Appendix A. Add a note if you like." },
     ReturnToDraft: { label: "Return to Draft", statuses: ["Pending Approval"], role: "approver", prompt: "Send it back to the PM. What needs to change?", noteRequired: true },
-    SendToTrade: { label: "Send to Trade", statuses: ["Approved"], prompt: "Email a PDF of the approved Appendix A to " },
-    TradeAlreadyAgreed: { label: "Trade Already Agreed", statuses: ["Approved"], prompt: "Skip the trade step. Attach the email where the trade agreed.", file: true, fileRequired: true },
-    TradeAccepted: { label: "Trade Accepted", statuses: ["With Trade"], prompt: "Attach the trade's acceptance email.", file: true, fileRequired: true },
+    SendToTrade: { label: "Send to Trade", statuses: ["Approved"], prompt: "Email the approved Appendix A (Word file) to " },
+    TradeAlreadyAgreed: { label: "Trade Already Agreed", statuses: ["Approved"], prompt: "Confirm the trade has already agreed to this Appendix A. This skips sending it to them. Add a note if you like." },
+    TradeAccepted: { label: "Trade Accepted", statuses: ["With Trade"], prompt: "Confirm the trade has accepted this Appendix A. Add a note if you like." },
     TradeWantsChanges: { label: "Trade Wants Changes", statuses: ["With Trade"], prompt: "Returns to Draft. Describe what the trade wants changed.", noteRequired: true, file: true },
     AccountingComplete: { label: "Accounting Complete", statuses: ["With Accounting"], role: "accounting", prompt: "Confirm the subcontract is entered. Correct the cost codes here if needed.", codes: true },
     ReturnFromAccounting: { label: "Send Back to PM", statuses: ["With Accounting"], role: "accounting", prompt: "What does the PM need to fix?", noteRequired: true },
@@ -286,7 +286,9 @@
   };
 
   function renderActions() {
-    const box = $("actions"); box.innerHTML = "";
+    const box = $("actions");
+    $("actionSection").append($("actionForm"));
+    box.innerHTML = "";
     const r = state.record;
     const status = r ? r.Status : "Not submitted";
     STEPS.forEach((step) => {
@@ -306,7 +308,7 @@
           : state.pending ? "Waiting for the last action to process"
           : (a.needsGraph && state.channel === "doc") ? "Needs the SharePoint connection (not set up yet)"
           : (step.who || "Not available to you");
-        b.onclick = () => openAction(key);
+        b.onclick = () => openAction(key, b);
         g.append(b);
       });
       box.append(g);
@@ -315,18 +317,25 @@
     show("actionSection", !!state.doc && state.doc.found !== false);
   }
 
-  function openAction(key) {
+  function openAction(key, btn) {
     const a = ACTIONS[key]; current = key;
-    const tradeTo = state.test ? state.settings.TestExternalEmail + " (TEST MODE, instead of " + (state.doc.subEmail || "the subcontractor") + ")" : (state.doc.subEmail || "the subcontractor");
+    const docTest = state.channel === "doc" && /^26-205/.test(state.doc.subcontractNumber || "");
+    const testTo = (state.settings && state.settings.TestExternalEmail) || "andrew.vanbeilen@gmail.com";
+    const tradeTo = (state.test || docTest) ? testTo + " (TEST MODE)" : (state.doc.subEmail || "the subcontractor");
     $("actionPrompt").textContent = a.prompt + (key === "SendToTrade" ? tradeTo + "." : "");
     $("actionNote").value = ""; $("actionFile").value = "";
     $("actionNote").hidden = key === "SendToTrade" || key === "BuildPackage";
-    $("fileLabel").hidden = !a.file;
+    $("fileLabel").hidden = !a.file || state.channel === "doc"; // attachments need the SharePoint connection
     $("codesLabel").hidden = !a.codes;
     if (a.codes) $("actionCodes").value = (state.record && state.record.CostCodes) || "";
     const sel = $("actionChoice"); sel.innerHTML = ""; sel.hidden = !a.choices;
     (a.choices || []).forEach((c) => { const o = document.createElement("option"); o.textContent = c; sel.append(o); });
-    $("actionForm").hidden = false;
+    const form = $("actionForm");
+    document.querySelectorAll("#actions button.chosen").forEach((x) => x.classList.remove("chosen"));
+    if (btn) { btn.classList.add("chosen"); btn.after(form); }
+    form.hidden = false;
+    form.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    $("actionGo").focus({ preventScroll: true });
   }
 
   // Folder holding this Appendix A (e.g. Sub-Files/03200 Rebar (Shaw Steel)/Contract/Internal)
