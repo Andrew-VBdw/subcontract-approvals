@@ -540,9 +540,13 @@
       renderDoc();
       const notConnected = /^0{8}-/.test(C.clientId || "0");
       if (/^https:\/\//i.test(state.docUrl) && notConnected) {
-        let d = null;
-        try { d = await DWDoc.read(); } catch (e) { d = null; }
+        let d = null, why = "";
+        try { d = await DWDoc.read(8); } catch (e) { d = null; why = e.message || String(e); }
         if (d) { await loadFromDoc(d); return; }
+        show("loading", false);
+        message("Couldn't read the approval fields from this file" + (why ? " (" + why + ")" : "") +
+          ". Close the file, wait a few seconds, then open it again from SharePoint. If this keeps happening, tell Andrew.", "error");
+        return;
       }
       if (!/^https:\/\//i.test(state.docUrl) || notConnected) {
         // Preview mode: show the full submit form so it can be tried, but block sending.

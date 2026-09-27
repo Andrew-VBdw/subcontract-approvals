@@ -16,12 +16,17 @@
   /** Finds the properties part that holds the DW columns. Returns {part, xml, doc, el} or null. */
   async function findPart() {
     const parts = await cb((done) => Office.context.document.customXmlParts.getByNamespaceAsync(NS, done));
-    for (const part of parts || []) {
-      const xml = await cb((done) => part.getXmlAsync(done));
-      const doc = new DOMParser().parseFromString(xml, "application/xml");
-      const els = doc.getElementsByTagNameNS("*", "DWRequest");
-      if (els.length) return { part, xml, doc, el: els[0] };
+    let lastErr = null;
+    // Newest part last: after a rewrite the updated copy is the one to use.
+    for (const part of (parts || []).slice().reverse()) {
+      try {
+        const xml = await cb((done) => part.getXmlAsync(done));
+        const doc = new DOMParser().parseFromString(xml, "application/xml");
+        const els = doc.getElementsByTagNameNS("*", "DWRequest");
+        if (els.length) return { part, xml, doc, el: els[0] };
+      } catch (e) { lastErr = e; }
     }
+    if (lastErr) throw lastErr;
     return null;
   }
 
@@ -30,9 +35,16 @@
     return els.length ? els[0].textContent || "" : "";
   };
 
-  /** Returns {request, status, history} or null when the file has no DW columns. */
-  async function read() {
-    const p = await findPart();
+  /** Returns {request, status, history} or null when the file has no DW columns.
+   *  Word can take a few seconds after opening to load the SharePoint fields, so keep trying. */
+  async function read(tries) {
+    let p = null, err = null;
+    for (let i = 0; i < (tries || 1); i++) {
+      try { p = await findPart(); err = null; } catch (e) { err = e; }
+      if (p) break;
+      if (i < (tries || 1) - 1) await new Promise((r) => setTimeout(r, 1000));
+    }
+    if (err) throw err;
     if (!p) return null;
     return { request: textOf(p.doc, "DWRequest"), status: textOf(p.doc, "DWStatus"), history: textOf(p.doc, "DWHistory") };
   }
@@ -55,9 +67,9 @@
         console.warn("setXml failed, falling back to replace", e);
       }
     }
-    // Fallback: remove the part and add the updated copy.
-    await cb((done) => p.part.deleteAsync(done));
+    // Fallback: add the updated copy first, then remove the old one, so the fields are never missing.
     await cb((done) => Office.context.document.customXmlParts.addAsync(newXml, done));
+    await cb((done) => p.part.deleteAsync(done));
   }
 
   /** Writes the request into the file and saves it. */
