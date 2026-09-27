@@ -225,12 +225,11 @@
     const est = parseMoney($("estimate").value);
     const price = state.doc ? state.doc.contractPrice : NaN;
     const line = $("deltaLine");
-    if (isNaN(est) || isNaN(price)) { line.hidden = true; show("justLabel", false); return; }
+    if (isNaN(est) || isNaN(price)) { line.hidden = true; return; }
     const delta = Math.round((price - est) * 100) / 100;
     line.hidden = false;
     line.className = "delta " + (delta > 0 ? "over" : "under");
     line.textContent = delta > 0 ? `Over estimate by ${money(delta)}` : `Within estimate by ${money(-delta)}`;
-    show("justLabel", delta > 0);
   }
 
   // ---------- actions ----------
@@ -243,7 +242,7 @@
     TradeAlreadyAgreed: { label: "Trade Already Agreed", statuses: ["Approved"], prompt: "Confirm the trade has already agreed to this Appendix A. This skips sending it to them. Add a note if you like." },
     TradeAccepted: { label: "Trade Accepted", statuses: ["With Trade"], prompt: "Confirm the trade has accepted this Appendix A. Add a note if you like." },
     TradeWantsChanges: { label: "Trade Wants Changes", statuses: ["With Trade"], prompt: "Returns to Draft. Describe what the trade wants changed.", noteRequired: true, file: true },
-    AccountingComplete: { label: "Accounting Complete", statuses: ["With Accounting"], role: "accounting", prompt: "Confirm the subcontract is entered. Correct the cost codes here if needed.", codes: true },
+    AccountingComplete: { label: "Accounting Complete", statuses: ["With Accounting"], role: "accounting", prompt: "Confirm the subcontract is entered. If accounting changed the subcontract number or cost codes, correct them here. A new number is also updated in this Appendix A.", codes: true, number: true },
     ReturnFromAccounting: { label: "Send Back to PM", statuses: ["With Accounting"], role: "accounting", prompt: "What does the PM need to fix?", noteRequired: true },
     BuildPackage: { needsGraph: true, label: "Build CCA-1 Package", statuses: ["Ready to Issue"], prompt: "Fill the project CCA-1 and insert this Appendix A before Appendix B. You can review the PDF before sending." },
     SendForSignature: { label: "Send for Signature", statuses: ["Ready to Issue"], needsPackage: true, prompt: "Send the package through DocuSign to the subcontractor's signer, then the Dawson Wallace signer." },
@@ -326,6 +325,8 @@
     $("actionNote").value = ""; $("actionFile").value = "";
     $("actionNote").hidden = key === "SendToTrade" || key === "BuildPackage";
     $("fileLabel").hidden = !a.file || state.channel === "doc"; // attachments need the SharePoint connection
+    $("numberLabel").hidden = !a.number;
+    if (a.number) $("actionNumber").value = state.doc.subcontractNumber || "";
     $("codesLabel").hidden = !a.codes;
     if (a.codes) $("actionCodes").value = (state.record && state.record.CostCodes) || "";
     const sel = $("actionChoice"); sel.innerHTML = ""; sel.hidden = !a.choices;
@@ -349,6 +350,18 @@
     const name = `${state.record.Title} ${new Date().toISOString().slice(0, 10)} ${file.name}`;
     const up = await DWGraph.upload(di.parentReference.driveId, folder, name, bytes);
     return up.webUrl;
+  }
+
+  /** Replaces the subcontract number in every field of the Appendix A that holds it. */
+  async function setDocumentNumber(n) {
+    await Word.run(async (ctx) => {
+      const ccs = ctx.document.contentControls.getByTag(C.tags.subcontractNumber);
+      ccs.load("items");
+      await ctx.sync();
+      if (!ccs.items.length) throw new Error("Couldn't find the subcontract number field in this Appendix A.");
+      ccs.items.forEach((cc) => cc.insertText(n, "Replace"));
+      await ctx.sync();
+    });
   }
 
   async function sendRequest(action, payload) {
@@ -378,9 +391,20 @@
       if (current === "BuildPackage") { await buildPackage(); }
       else {
         message("Working…", "info");
+        let fullNote = note, newNumber;
+        if (a.number) {
+          const n = $("actionNumber").value.trim(), old = state.doc.subcontractNumber || "";
+          if (!n) { $("actionGo").disabled = false; return message("Enter the subcontract number.", "error"); }
+          if (n !== old) {
+            await setDocumentNumber(n);
+            newNumber = n;
+            fullNote = `Subcontract number changed from ${old} to ${n}.` + (note ? " " + note : "");
+          }
+        }
         const link = await uploadAttachment(file);
-        await sendRequest(current, { note, attachmentUrl: link, choice: a.choices ? $("actionChoice").value : "",
-          costCodes: a.codes ? $("actionCodes").value.trim() : undefined });
+        await sendRequest(current, { note: fullNote, attachmentUrl: link, choice: a.choices ? $("actionChoice").value : "",
+          costCodes: a.codes ? $("actionCodes").value.trim() : undefined, newSubcontractNumber: newNumber });
+        if (newNumber) { state.doc.subcontractNumber = newNumber; renderDoc(); }
         message(`${a.label} sent. The status will update in a minute.`, "ok");
       }
       $("actionForm").hidden = true;
@@ -422,13 +446,12 @@
     if (isNaN(est)) return message("Enter the estimate carried.", "error");
     if (!codes) return message("Enter the cost code(s).", "error");
     const delta = Math.round((d.contractPrice - est) * 100) / 100;
-    if (delta > 0 && !just) return message("Explain why the contract is over the estimate.", "error");
     const gst = Math.round(d.contractPrice * 5) / 100;
     $("submitBtn").disabled = true;
     try {
       message("Submitting…", "info");
       await sendRequest(state.record ? "Resubmit" : "Submit", {
-        estimateCarried: est, costCodes: codes, justification: just,
+        estimateCarried: est, costCodes: codes, justification: just, note: just,
         contractValue: d.contractPrice, delta,
         doc: d,
         words: {

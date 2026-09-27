@@ -12,7 +12,7 @@
   <script src="graph.js?v=4"></script>
   <script src="package-builder.js?v=2"></script>
   <script src="docchannel.js?v=3"></script>
-  <script src="taskpane.js?v=12"></script>
+  <script src="taskpane.js?v=14"></script>
 </head>
 <body>
   <header>
@@ -46,8 +46,8 @@
       <label>Cost code(s)
         <input id="costCodes" type="text" placeholder="e.g. 03-3000" />
       </label>
-      <label id="justLabel" hidden>Why is the contract over the estimate? (required)
-        <textarea id="justification" rows="3"></textarea>
+      <label id="justLabel">Comment for the approver (optional)
+        <textarea id="justification" rows="3" placeholder="Anything the approver should know, e.g. why it is over the estimate"></textarea>
       </label>
       <button id="submitBtn" class="primary">Submit for Approval</button>
     </section>
@@ -59,6 +59,9 @@
         <div id="actionPrompt"></div>
         <textarea id="actionNote" rows="3" placeholder="Notes"></textarea>
         <select id="actionChoice" hidden></select>
+        <label id="numberLabel" hidden>Subcontract number
+          <input id="actionNumber" type="text" />
+        </label>
         <label id="codesLabel" hidden>Cost code(s)
           <input id="actionCodes" type="text" />
         </label>
