@@ -52,3 +52,6 @@ button:disabled { opacity: .5; cursor: default; }
 #actions .action-form { margin: 6px 0 10px; }
 
 [hidden] { display: none !important; }
+
+.who{display:block;font-size:12px;margin:0 0 8px;}
+.who input{margin-top:2px;}

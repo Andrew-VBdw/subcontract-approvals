@@ -364,10 +364,47 @@
     });
   }
 
+  // Same status and event names the router uses, so the file can be updated the moment someone clicks.
+  const STATUS_AFTER = {
+    Submit: "Pending Approval", Resubmit: "Pending Approval", Approve: "Approved", ReturnToDraft: "Draft",
+    SendToTrade: "With Trade", TradeAccepted: "With Accounting", TradeAlreadyAgreed: "With Accounting",
+    TradeWantsChanges: "Draft", AccountingComplete: "Ready to Issue", ReturnFromAccounting: "Draft",
+    Withdraw: "Draft", Cancel: "Cancelled", LogMarkup: "Signature Issue", LogDispute: "Signature Issue",
+    "Resolve:Reissue unchanged": "Ready to Issue", "Resolve:Appendix A must change": "Draft", "Resolve:Cancel subcontract": "Cancelled"
+  };
+  const EVENT_NAME = {
+    Submit: "Submitted", Resubmit: "Resubmitted", Approve: "Approved", ReturnToDraft: "Returned for changes",
+    SendToTrade: "Sent to trade", TradeAccepted: "Trade accepted", TradeAlreadyAgreed: "Trade already agreed",
+    TradeWantsChanges: "Trade wants changes", AccountingComplete: "Accounting complete", ReturnFromAccounting: "Returned by accounting",
+    Withdraw: "Withdrawn", Cancel: "Cancelled", LogMarkup: "Markup", LogDispute: "Dispute", Resolve: "Resolved", Comment: "Comment"
+  };
+  const pad = (n) => String(n).padStart(2, "0");
+  function stamp(d) { d = d || new Date(); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`; }
+  const oneLine = (t) => String(t || "").replace(/\s*\r?\n\s*/g, " ").replace(/\|/g, "/").trim();
+
+  // The panel can't see who is signed in without the app registration, so it asks once and remembers.
+  function storedName() { try { return localStorage.getItem("dwName") || ""; } catch (e) { return ""; } }
+  function myName() {
+    const n = ($("whoName").value || "").trim();
+    if (!n) throw new Error("Enter your name at the top of the panel first (it goes in the history).");
+    try { localStorage.setItem("dwName", n); } catch (e) { /* not kept; asked again next time */ }
+    return n;
+  }
+
   async function sendRequest(action, payload) {
     if (state.channel === "doc") {
-      await DWDoc.write({ id: "r" + Date.now(), action, subcontractNumber: state.doc.subcontractNumber,
-        projectNumber: state.doc.projectNumber, documentUrl: state.docUrl, payload: payload || {}, sentAt: new Date().toISOString() });
+      payload = payload || {};
+      const before = state.record ? state.record.Status : "";
+      const key = action === "Resolve" ? "Resolve:" + (payload.choice || "") : action;
+      const who = myName();
+      const note = oneLine(payload.note || payload.justification || "");
+      const req = { id: "r" + Date.now() + Math.random().toString(36).slice(2, 6), action, subcontractNumber: state.doc.subcontractNumber,
+        projectNumber: state.doc.projectNumber, documentUrl: state.docUrl, sentAt: new Date().toISOString(),
+        payload: Object.assign({}, payload, { expectStatus: before, actorName: who }) };
+      const line = [stamp(), who, EVENT_NAME[action] || action, note].join(" | ");
+      const next = action === "Comment" ? null : (STATUS_AFTER[key] || before);
+      const res = await DWDoc.apply(req, next, line);
+      showDocState(res.status, res.history);
       return;
     }
     await DWGraph.createItem("requests", {
@@ -405,7 +442,7 @@
         await sendRequest(current, { note: fullNote, attachmentUrl: link, choice: a.choices ? $("actionChoice").value : "",
           costCodes: a.codes ? $("actionCodes").value.trim() : undefined, newSubcontractNumber: newNumber });
         if (newNumber) { state.doc.subcontractNumber = newNumber; renderDoc(); }
-        message(`${a.label} sent. The status will update in a minute.`, "ok");
+        if (state.channel !== "doc") message(`${a.label} sent. The status will update in a minute.`, "ok");
       }
       $("actionForm").hidden = true;
       if (state.channel === "doc") docSent(a.label); else pollForChange();
@@ -528,18 +565,15 @@
 
   // ---------- document channel (no app registration) ----------
   function docSent(label) {
-    state.pending = true;
-    message(`${label} saved into the file. Power Automate processes it within a couple of minutes and emails you. Close and reopen the file to see the new status here.`, "ok");
-    renderActions();
+    message(`${label} done. It's logged and the emails go out within a minute or two. You can keep working.`, "ok");
   }
 
-  async function loadFromDoc(d) {
-    state.channel = "doc";
-    state.pending = !!(d.request && d.request.trim());
-    state.record = d.status ? { Title: state.doc.subcontractNumber, Status: d.status } : null;
+  function showDocState(status, history) {
+    state.record = status ? { Title: state.doc.subcontractNumber, Status: status } : null;
     renderStatus();
+    $("statusNote").textContent = status ? "Decisions made from an approval email show here once everyone has closed the file." : "This Appendix A has not been submitted yet.";
     const list = $("log"); list.innerHTML = "";
-    (d.history || "").split(/\r?\n/).filter((l) => l.trim()).reverse().forEach((line) => {
+    (history || "").split(/\r?\n/).filter((l) => l.trim()).reverse().forEach((line) => {
       const [when, who, what, note] = line.split(" | ");
       const li = document.createElement("li");
       li.innerHTML = `<div class="what"></div><div class="when"></div><div class="note"></div>`;
@@ -549,10 +583,17 @@
       list.append(li);
     });
     show("logSection", list.children.length > 0);
+  }
+
+  async function loadFromDoc(d) {
+    state.channel = "doc";
+    state.pending = false;
+    const saved = storedName();
+    $("whoName").value = saved || await DWDoc.lastAuthor();
+    show("whoRow", true);
+    showDocState(d.status, d.history);
     const tb = $("testBanner");
     if (tb && /^26-205/.test(state.doc.subcontractNumber || "")) { tb.hidden = false; tb.textContent = "TEST MODE: emails go only to Andrew's work and Gmail addresses."; }
-    if (state.pending) message("The last action is still being processed. Reopen the file in a minute or two to see the result.", "info");
-    $("statusNote").textContent = d.status ? "Status as of when this file was opened." : "This Appendix A has not been submitted yet.";
   }
 
   async function start() {

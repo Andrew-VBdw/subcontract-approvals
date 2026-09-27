@@ -4,15 +4,15 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Subcontract Approvals</title>
-  <link rel="stylesheet" href="taskpane.css?v=4" />
+  <link rel="stylesheet" href="taskpane.css?v=5" />
   <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@azure/msal-browser@4.30.0/lib/msal-browser.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
   <script src="config.js?v=4"></script>
   <script src="graph.js?v=4"></script>
   <script src="package-builder.js?v=2"></script>
-  <script src="docchannel.js?v=3"></script>
-  <script src="taskpane.js?v=14"></script>
+  <script src="docchannel.js?v=4"></script>
+  <script src="taskpane.js?v=15"></script>
 </head>
 <body>
   <header>
@@ -33,6 +33,7 @@
 
     <section id="statusSection" hidden>
       <h2>Status</h2>
+      <label id="whoRow" class="who" hidden>Your name (for the history) <input id="whoName" type="text" autocomplete="name" /></label>
       <div class="status-row"><span id="statusBadge" class="badge"></span><span id="statusNote" class="muted"></span></div>
       <dl id="recordFields" class="fields"></dl>
     </section>
