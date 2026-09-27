@@ -241,7 +241,7 @@
     SendToTrade: { label: "Send to Trade", statuses: ["Approved"], prompt: "Email the approved Appendix A (Word file) to " },
     TradeAlreadyAgreed: { label: "Trade Already Agreed", statuses: ["Approved"], prompt: "Confirm the trade has already agreed to this Appendix A. This skips sending it to them. Add a note if you like." },
     TradeAccepted: { label: "Trade Accepted", statuses: ["With Trade"], prompt: "Confirm the trade has accepted this Appendix A. Add a note if you like." },
-    TradeWantsChanges: { label: "Trade Wants Changes", statuses: ["With Trade"], prompt: "Returns to Draft. Describe what the trade wants changed.", noteRequired: true, file: true },
+    TradeWantsChanges: { label: "Trade Wants Changes", statuses: ["With Trade"], prompt: "Returns this to Draft. Add a note if you like." },
     AccountingComplete: { label: "Accounting Complete", statuses: ["With Accounting"], role: "accounting", prompt: "Confirm the subcontract is entered. If accounting changed the subcontract number or cost codes, correct them here. A new number is also updated in this Appendix A.", codes: true, number: true },
     ReturnFromAccounting: { label: "Send Back to PM", statuses: ["With Accounting"], role: "accounting", prompt: "What does the PM need to fix?", noteRequired: true },
     BuildPackage: { needsGraph: true, label: "Build CCA-1 Package", statuses: ["Ready to Issue"], prompt: "Fill the project CCA-1 and insert this Appendix A before Appendix B. You can review the PDF before sending." },
