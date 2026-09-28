@@ -55,3 +55,6 @@ button:disabled { opacity: .5; cursor: default; }
 
 .who{display:block;font-size:12px;margin:0 0 8px;}
 .who input{margin-top:2px;}
+
+label.check { color: var(--ink); display: flex; align-items: center; gap: 6px; font-weight: 600; margin: 8px 0; }
+label.check input { width: auto; margin: 0; }

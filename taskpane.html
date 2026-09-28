@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Subcontract Approvals</title>
-  <link rel="stylesheet" href="taskpane.css?v=5" />
+  <link rel="stylesheet" href="taskpane.css?v=6" />
   <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@azure/msal-browser@4.30.0/lib/msal-browser.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
@@ -12,7 +12,7 @@
   <script src="graph.js?v=4"></script>
   <script src="package-builder.js?v=2"></script>
   <script src="docchannel.js?v=4"></script>
-  <script src="taskpane.js?v=23"></script>
+  <script src="taskpane.js?v=24"></script>
 </head>
 <body>
   <header>
@@ -51,6 +51,7 @@
       <label id="justLabel">Comment for the approver (optional)
         <textarea id="justification" rows="3" placeholder="Anything the approver should know, e.g. why it is over the estimate"></textarea>
       </label>
+      <label class="check"><input id="tradeAgreed" type="checkbox" /> The trade has agreed to this Appendix A</label>
       <button id="submitBtn" class="primary">Submit for Approval</button>
     </section>
 

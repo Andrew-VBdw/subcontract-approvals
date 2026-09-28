@@ -238,7 +238,7 @@
   // role: "approver" and "accounting" buttons only show for that person (the approver sees everything).
   // Everything else shows for anyone working on the file; the log records who clicked.
   const ACTIONS = {
-    Approve: { label: "Approve", statuses: ["Pending Approval"], role: "approver", prompt: "Moves it to Approved and emails the PM to send it to the trade. Any older approval email for it stops working. Add a note if you like." },
+    Approve: { label: "Approve", statuses: ["Pending Approval"], role: "approver", prompt: "Final approval. Moves it to With Accounting and sends accounting their request. Any older approval email for it stops working. Add a note if you like." },
     ReturnToDraft: { label: "Return to Draft", statuses: ["Pending Approval"], role: "approver", prompt: "Returns it to Draft for the PM to revise and resubmit. Any older approval email for it stops working. What needs to change?", noteRequired: true },
     SendToTrade: { label: "Send to Trade", statuses: ["Approved"], prompt: "Email the approved Appendix A (Word file) to " },
     TradeAlreadyAgreed: { label: "Trade Already Agreed", statuses: ["Approved"], prompt: "Skips sending it to the trade and moves it to With Accounting. Accounting gets an email to enter it. Add a note if you like." },
@@ -271,17 +271,16 @@
   // (and the person signed in) are clickable. The rest are greyed with a note on when they unlock.
   const STEPS = [
     { title: "1. Approval", statuses: ["Pending Approval"], keys: ["Approve", "ReturnToDraft"], who: "Approver only" },
-    { title: "2. Trade", statuses: ["Approved", "With Trade"], keys: ["SendToTrade", "TradeAlreadyAgreed", "TradeAccepted"] },
-    { title: "3. Accounting", statuses: ["With Accounting"], keys: ["AccountingComplete", "ReturnFromAccounting"], who: "Accounting only" },
-    { title: "4. Contract & DocuSign", statuses: ["Ready to Issue"], keys: ["DraftAndSend"] },
-    { title: "5. Signature", statuses: ["Out for Signature", "Signature Issue"], keys: ["LogMarkup", "LogDispute", "Resolve"] },
+    { title: "2. Accounting", statuses: ["With Accounting"], keys: ["AccountingComplete", "ReturnFromAccounting"], who: "Accounting only" },
+    { title: "3. Contract & DocuSign", statuses: ["Ready to Issue"], keys: ["DraftAndSend"] },
+    { title: "4. Signature", statuses: ["Out for Signature", "Signature Issue"], keys: ["LogMarkup", "LogDispute", "Resolve"] },
     { title: "Any time before signing", statuses: [], keys: ["Withdraw", "Cancel"] }
   ];
   const WHEN = {
     Approve: "After the PM submits", ReturnToDraft: "After the PM submits",
     SendToTrade: "After approval", TradeAlreadyAgreed: "After approval",
     TradeAccepted: "After it's sent to the trade",
-    AccountingComplete: "After the trade accepts", ReturnFromAccounting: "After the trade accepts", BackToAccounting: "If accounting sends it back",
+    AccountingComplete: "After approval", ReturnFromAccounting: "After approval", BackToAccounting: "If accounting sends it back",
     BuildPackage: "After it's entered into accounting", SendForSignature: "After the package is built",
     LogMarkup: "While out for signature", LogDispute: "While out for signature", Resolve: "If there's a signature issue",
     Withdraw: "Before it is entered into accounting", Cancel: "Before it is entered into accounting"
@@ -370,7 +369,7 @@
 
   // Same status and event names the router uses, so the file can be updated the moment someone clicks.
   const STATUS_AFTER = {
-    Submit: "Pending Approval", Resubmit: "Pending Approval", Approve: "Approved", ReturnToDraft: "Draft",
+    Submit: "Pending Approval", Resubmit: "Pending Approval", Approve: "With Accounting", ReturnToDraft: "Draft",
     SendToTrade: "With Trade", TradeAccepted: "With Accounting", TradeAlreadyAgreed: "With Accounting",
     TradeWantsChanges: "Draft", AccountingComplete: "Ready to Issue", ReturnFromAccounting: "Returned by Accounting", BackToAccounting: "With Accounting",
     Withdraw: "Draft", Cancel: "Cancelled", LogMarkup: "Signature Issue", LogDispute: "Signature Issue",
@@ -500,13 +499,15 @@
     const just = $("justification").value.trim();
     if (isNaN(est)) return message("Enter the estimate carried.", "error");
     if (!codes) return message("Enter the cost code(s).", "error");
+    if (!$("tradeAgreed").checked) return message("Confirm the trade has agreed to this Appendix A before submitting.", "error");
     const delta = Math.round((d.contractPrice - est) * 100) / 100;
     const gst = Math.round(d.contractPrice * 5) / 100;
     $("submitBtn").disabled = true;
     try {
       message("Submitting…", "info");
       await sendRequest(state.record ? "Resubmit" : "Submit", {
-        estimateCarried: est, costCodes: codes, justification: just, note: just,
+        estimateCarried: est, costCodes: codes, justification: just, tradeAgreed: true,
+        note: "Trade has agreed to this Appendix A (confirmed by the PM)." + (just ? " " + just : ""),
         contractValue: d.contractPrice, delta,
         doc: d,
         words: {
@@ -583,8 +584,8 @@
 
   // What happens next at each status, shown under the status so everyone knows whose move it is.
   const NEXT = {
-    "Draft": "Next: the PM revises the Appendix A and resubmits it for approval.",
-    "Pending Approval": "Next: the approver clicks Approve in the Power Automate approval email (or here), or returns it to the PM here.",
+    "Draft": "Next: the PM revises the Appendix A, confirms the trade has agreed to it and resubmits it for approval.",
+    "Pending Approval": "Next: the approver gives final approval with Approve in the Power Automate approval email (or here), or returns it to the PM here. Approving sends it straight to accounting.",
     "Approved": "Next: the PM clicks Send to Trade, or Trade Already Agreed if the trade has already agreed to it.",
     "With Trade": "Next: the PM works out any changes with the trade, then clicks Trade Accepted once they agree.",
     "With Accounting": "Next: accounting enters the subcontract and clicks Entered into Accounting in the Power Automate approval email (or here), or sends it back to the PM here.",
