@@ -205,9 +205,9 @@
     ] : []);
     show("statusSection", true);
 
-    const canSubmit = !r || r.Status === "Draft" || r.Status === "Returned by Accounting";
-    $("submitTitle").textContent = !r ? "Submit for approval" : r.Status === "Returned by Accounting"
-      ? "Resubmit for approval (only if the price or scope changed)" : "Resubmit for approval";
+    const canSubmit = !r || r.Status === "Draft";
+    $("submitTitle").textContent = r ? "Resubmit for approval" : "Submit for approval";
+    show("backSection", !!r && r.Status === "Returned by Accounting");
     if (r && canSubmit) {
       if (r.EstimateCarried != null && !$("estimate").value) $("estimate").value = Number(r.EstimateCarried).toFixed(2);
       if (r.CostCodes && !$("costCodes").value) $("costCodes").value = r.CostCodes;
@@ -243,10 +243,11 @@
     TradeAlreadyAgreed: { label: "Trade Already Agreed", statuses: ["Approved"], prompt: "Skips sending it to the trade and moves it to With Accounting. Accounting gets an email to enter it. Add a note if you like." },
     TradeAccepted: { label: "Trade Accepted", statuses: ["With Trade"], prompt: "Moves it to With Accounting. Accounting gets an email to enter it. Add a note if you like." },
     TradeWantsChanges: { label: "Trade Wants Changes", statuses: ["With Trade"], prompt: "Returns it to Draft for the PM to revise and resubmit. Add a note if you like." },
-    AccountingComplete: { label: "Accounting Complete", statuses: ["With Accounting"], role: "accounting", prompt: "Moves it to Ready to Issue and emails the PM to build the CCA-1 package. Any older accounting email for it stops working. If accounting changed the subcontract number or cost codes, correct them here. A new number is also updated in this Appendix A.", codes: true, number: true },
+    AccountingComplete: { label: "Entered into Accounting", statuses: ["With Accounting"], role: "accounting", prompt: "Moves it to Ready to Issue and emails the PM to build the CCA-1 package. Any older accounting email for it stops working. If accounting changed the subcontract number or cost codes, correct them here. A new number is also updated in this Appendix A.", codes: true, number: true },
     ReturnFromAccounting: { label: "Send Back to PM", statuses: ["With Accounting"], role: "accounting", prompt: "Returns it to the PM to fix. The PM can send it straight back to accounting without another approval. What does the PM need to fix?", noteRequired: true },
     BackToAccounting: { label: "Back to Accounting", statuses: ["Returned by Accounting"], prompt: "Sends it straight back to accounting. No new approval needed. Accounting gets an email to enter it. Say what you fixed." },
     BuildPackage: { needsGraph: true, label: "Build CCA-1 Package", statuses: ["Ready to Issue"], prompt: "Fill the project CCA-1 and insert this Appendix A before Appendix B. You can review the PDF before sending." },
+    DraftAndSend: { label: "Draft Contract & Send to DocuSign", statuses: ["Ready to Issue"], comingSoon: true, prompt: "" },
     SendForSignature: { label: "Send for Signature", statuses: ["Ready to Issue"], needsPackage: true, prompt: "Send the package through DocuSign to the subcontractor's signer, then the Dawson Wallace signer." },
     LogMarkup: { label: "Log Markup", statuses: ["Out for Signature"], prompt: "Attach the trade's markup. The open envelope will be voided.", file: true, fileRequired: true },
     LogDispute: { label: "Log Dispute", statuses: ["Out for Signature"], prompt: "Attach the email or summarize the call. The open envelope will be voided.", file: true, noteRequired: true },
@@ -271,8 +272,8 @@
   const STEPS = [
     { title: "1. Approval", statuses: ["Pending Approval"], keys: ["Approve", "ReturnToDraft"], who: "Approver only" },
     { title: "2. Trade", statuses: ["Approved", "With Trade"], keys: ["SendToTrade", "TradeAlreadyAgreed", "TradeAccepted", "TradeWantsChanges"] },
-    { title: "3. Accounting", statuses: ["With Accounting", "Returned by Accounting"], keys: ["AccountingComplete", "ReturnFromAccounting", "BackToAccounting"] },
-    { title: "4. Contract", statuses: ["Ready to Issue"], keys: ["BuildPackage", "SendForSignature"] },
+    { title: "3. Accounting", statuses: ["With Accounting"], keys: ["AccountingComplete", "ReturnFromAccounting"], who: "Accounting only" },
+    { title: "4. Contract & DocuSign", statuses: ["Ready to Issue"], keys: ["DraftAndSend"] },
     { title: "5. Signature", statuses: ["Out for Signature", "Signature Issue"], keys: ["LogMarkup", "LogDispute", "Resolve"] },
     { title: "Any time before signing", statuses: [], keys: ["Withdraw", "Cancel"] }
   ];
@@ -281,7 +282,7 @@
     SendToTrade: "After approval", TradeAlreadyAgreed: "After approval",
     TradeAccepted: "After it's sent to the trade", TradeWantsChanges: "After it's sent to the trade",
     AccountingComplete: "After the trade accepts", ReturnFromAccounting: "After the trade accepts", BackToAccounting: "If accounting sends it back",
-    BuildPackage: "After accounting is complete", SendForSignature: "After the package is built",
+    BuildPackage: "After it's entered into accounting", SendForSignature: "After the package is built",
     LogMarkup: "While out for signature", LogDispute: "While out for signature", Resolve: "If there's a signature issue",
     Withdraw: "After submitting, until signed", Cancel: "Until signed"
   };
@@ -300,12 +301,13 @@
       step.keys.forEach((key) => {
         const a = ACTIONS[key];
         const stageOk = !!r && a.statuses.includes(status) && (!a.needsPackage || r.PackageUrl);
-        const roleOk = allowed(a) && !(a.needsGraph && state.channel === "doc") && !state.pending;
+        const roleOk = allowed(a) && !(a.needsGraph && state.channel === "doc") && !state.pending && !a.comingSoon;
         const b = document.createElement("button");
         b.innerHTML = '<span class="lbl"></span><span class="hint"></span>';
         b.querySelector(".lbl").textContent = a.label;
         b.disabled = !(stageOk && roleOk);
-        if (b.disabled) b.querySelector(".hint").textContent = !stageOk ? (WHEN[key] || "")
+        if (b.disabled) b.querySelector(".hint").textContent = a.comingSoon ? "Coming soon: auto-drafts the CCA-1 from this Appendix A and sends it through DocuSign"
+          : !stageOk ? (WHEN[key] || "")
           : state.pending ? "Waiting for the last action to process"
           : (a.needsGraph && state.channel === "doc") ? "Needs the SharePoint connection (not set up yet)"
           : (step.who || "Not available to you");
@@ -377,7 +379,7 @@
   const EVENT_NAME = {
     Submit: "Submitted", Resubmit: "Resubmitted", Approve: "Approved", ReturnToDraft: "Returned for changes",
     SendToTrade: "Sent to trade", TradeAccepted: "Trade accepted", TradeAlreadyAgreed: "Trade already agreed",
-    TradeWantsChanges: "Trade wants changes", AccountingComplete: "Accounting complete", ReturnFromAccounting: "Returned by accounting", BackToAccounting: "Back to accounting",
+    TradeWantsChanges: "Trade wants changes", AccountingComplete: "Entered into accounting", ReturnFromAccounting: "Returned by accounting", BackToAccounting: "Back to accounting",
     Withdraw: "Withdrawn", Cancel: "Cancelled", LogMarkup: "Markup", LogDispute: "Dispute", Resolve: "Resolved", Comment: "Comment"
   };
   const pad = (n) => String(n).padStart(2, "0");
@@ -451,6 +453,20 @@
     } catch (e) {
       message("Could not complete: " + e.message, "error");
     } finally { $("actionGo").disabled = false; }
+  }
+
+  async function backToAccounting() {
+    if (state.preview) return message('Preview: "Back to Accounting" would send it straight back to accounting. Nothing was sent.', "info");
+    $("backBtn").disabled = true;
+    try {
+      message("Working…", "info");
+      await sendRequest("BackToAccounting", { note: $("backNote").value.trim() });
+      $("backNote").value = "";
+      if (state.channel === "doc") docSent("Back to Accounting");
+      else { message("Back to Accounting sent. The status will update in a minute.", "ok"); pollForChange(); }
+    } catch (e) {
+      message("Could not complete: " + e.message, "error");
+    } finally { $("backBtn").disabled = false; }
   }
 
   async function buildPackage() {
@@ -571,9 +587,9 @@
     "Pending Approval": "Next: the approver clicks Approve in the Power Automate approval email (or here), or returns it to the PM here.",
     "Approved": "Next: the PM clicks Send to Trade, or Trade Already Agreed if the trade has already agreed to it.",
     "With Trade": "Next: when the trade replies, the PM clicks Trade Accepted or Trade Wants Changes.",
-    "With Accounting": "Next: accounting enters the subcontract and clicks Accounting Complete in the Power Automate approval email (or here), or sends it back to the PM here.",
+    "With Accounting": "Next: accounting enters the subcontract and clicks Entered into Accounting in the Power Automate approval email (or here), or sends it back to the PM here.",
     "Returned by Accounting": "Next: the PM fixes what accounting asked for and clicks Back to Accounting. No new approval needed unless the price or scope changed.",
-    "Ready to Issue": "Next: the PM builds the CCA-1 package and sends it for signature (this step is still being built).",
+    "Ready to Issue": "Next: the PM drafts the contract and sends it through DocuSign (this step is coming soon).",
     "Out for Signature": "Next: waiting on signatures through DocuSign.",
     "Signature Issue": "Next: the PM resolves the signature issue here.",
     "Executed": "Done: the subcontract is signed.",
@@ -656,6 +672,7 @@
     $("estimate").addEventListener("input", updateDelta);
     $("submitBtn").onclick = submit;
     $("actionGo").onclick = runAction;
+    $("backBtn").onclick = backToAccounting;
     $("actionCancel").onclick = () => { $("actionForm").hidden = true; };
     $("commentBtn").onclick = addComment;
     start();

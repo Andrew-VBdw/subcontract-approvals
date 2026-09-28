@@ -12,7 +12,7 @@
   <script src="graph.js?v=4"></script>
   <script src="package-builder.js?v=2"></script>
   <script src="docchannel.js?v=4"></script>
-  <script src="taskpane.js?v=18"></script>
+  <script src="taskpane.js?v=19"></script>
 </head>
 <body>
   <header>
@@ -51,6 +51,15 @@
         <textarea id="justification" rows="3" placeholder="Anything the approver should know, e.g. why it is over the estimate"></textarea>
       </label>
       <button id="submitBtn" class="primary">Submit for Approval</button>
+    </section>
+
+    <section id="backSection" hidden>
+      <h2>Send back to accounting</h2>
+      <p class="muted">Accounting sent this back. Fix what they asked for, then send it straight back to them. No new approval needed.</p>
+      <label>What you fixed (optional)
+        <textarea id="backNote" rows="3" placeholder="e.g. corrected the cost code"></textarea>
+      </label>
+      <button id="backBtn" class="primary">Back to Accounting</button>
     </section>
 
     <section id="actionSection" hidden>
