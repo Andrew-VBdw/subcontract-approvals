@@ -12,7 +12,7 @@
   <script src="graph.js?v=4"></script>
   <script src="package-builder.js?v=2"></script>
   <script src="docchannel.js?v=4"></script>
-  <script src="taskpane.js?v=20"></script>
+  <script src="taskpane.js?v=23"></script>
 </head>
 <body>
   <header>
@@ -35,6 +35,7 @@
       <h2>Status</h2>
       <label id="whoRow" class="who" hidden>Your name (for the history) <input id="whoName" type="text" autocomplete="name" /></label>
       <div class="status-row"><span id="statusBadge" class="badge"></span><span id="statusNote" class="muted"></span></div>
+      <button id="refreshBtn" hidden>Refresh status</button>
       <dl id="recordFields" class="fields"></dl>
     </section>
 
@@ -57,7 +58,7 @@
       <h2>Send back to accounting</h2>
       <p class="muted">Accounting sent this back. Fix what they asked for, then send it straight back to them. No new approval needed.</p>
       <label>What you fixed (optional)
-        <textarea id="backNote" rows="3" placeholder="e.g. corrected the cost code"></textarea>
+        <textarea id="backNote" rows="3" placeholder="e.g. fixed what accounting flagged"></textarea>
       </label>
       <button id="backBtn" class="primary">Back to Accounting</button>
     </section>

@@ -243,8 +243,7 @@
     SendToTrade: { label: "Send to Trade", statuses: ["Approved"], prompt: "Email the approved Appendix A (Word file) to " },
     TradeAlreadyAgreed: { label: "Trade Already Agreed", statuses: ["Approved"], prompt: "Skips sending it to the trade and moves it to With Accounting. Accounting gets an email to enter it. Add a note if you like." },
     TradeAccepted: { label: "Trade Accepted", statuses: ["With Trade"], prompt: "Moves it to With Accounting. Accounting gets an email to enter it. Add a note if you like." },
-    TradeWantsChanges: { label: "Trade Wants Changes", statuses: ["With Trade"], prompt: "Returns it to Draft for the PM to revise and resubmit. Add a note if you like." },
-    AccountingComplete: { label: "Entered into Accounting", statuses: ["With Accounting"], role: "accounting", prompt: "Moves it to Ready to Issue and emails the PM to build the CCA-1 package. Any older accounting email for it stops working. If accounting changed the subcontract number or cost codes, correct them here. A new number is also updated in this Appendix A.", codes: true, number: true },
+    AccountingComplete: { label: "Entered into Accounting", statuses: ["With Accounting"], role: "accounting", prompt: "Moves it to Ready to Issue and emails the PM to build the CCA-1 package. Any older accounting email for it stops working. If accounting changed the subcontract number, correct it here. A new number is also updated in this Appendix A.", number: true },
     ReturnFromAccounting: { label: "Send Back to PM", statuses: ["With Accounting"], role: "accounting", prompt: "Returns it to the PM to fix. The PM can send it straight back to accounting without another approval. What does the PM need to fix?", noteRequired: true },
     BackToAccounting: { label: "Back to Accounting", statuses: ["Returned by Accounting"], prompt: "Sends it straight back to accounting. No new approval needed. Accounting gets an email to enter it. Say what you fixed." },
     BuildPackage: { needsGraph: true, label: "Build CCA-1 Package", statuses: ["Ready to Issue"], prompt: "Fill the project CCA-1 and insert this Appendix A before Appendix B. You can review the PDF before sending." },
@@ -272,7 +271,7 @@
   // (and the person signed in) are clickable. The rest are greyed with a note on when they unlock.
   const STEPS = [
     { title: "1. Approval", statuses: ["Pending Approval"], keys: ["Approve", "ReturnToDraft"], who: "Approver only" },
-    { title: "2. Trade", statuses: ["Approved", "With Trade"], keys: ["SendToTrade", "TradeAlreadyAgreed", "TradeAccepted", "TradeWantsChanges"] },
+    { title: "2. Trade", statuses: ["Approved", "With Trade"], keys: ["SendToTrade", "TradeAlreadyAgreed", "TradeAccepted"] },
     { title: "3. Accounting", statuses: ["With Accounting"], keys: ["AccountingComplete", "ReturnFromAccounting"], who: "Accounting only" },
     { title: "4. Contract & DocuSign", statuses: ["Ready to Issue"], keys: ["DraftAndSend"] },
     { title: "5. Signature", statuses: ["Out for Signature", "Signature Issue"], keys: ["LogMarkup", "LogDispute", "Resolve"] },
@@ -281,7 +280,7 @@
   const WHEN = {
     Approve: "After the PM submits", ReturnToDraft: "After the PM submits",
     SendToTrade: "After approval", TradeAlreadyAgreed: "After approval",
-    TradeAccepted: "After it's sent to the trade", TradeWantsChanges: "After it's sent to the trade",
+    TradeAccepted: "After it's sent to the trade",
     AccountingComplete: "After the trade accepts", ReturnFromAccounting: "After the trade accepts", BackToAccounting: "If accounting sends it back",
     BuildPackage: "After it's entered into accounting", SendForSignature: "After the package is built",
     LogMarkup: "While out for signature", LogDispute: "While out for signature", Resolve: "If there's a signature issue",
@@ -587,7 +586,7 @@
     "Draft": "Next: the PM revises the Appendix A and resubmits it for approval.",
     "Pending Approval": "Next: the approver clicks Approve in the Power Automate approval email (or here), or returns it to the PM here.",
     "Approved": "Next: the PM clicks Send to Trade, or Trade Already Agreed if the trade has already agreed to it.",
-    "With Trade": "Next: when the trade replies, the PM clicks Trade Accepted or Trade Wants Changes.",
+    "With Trade": "Next: the PM works out any changes with the trade, then clicks Trade Accepted once they agree.",
     "With Accounting": "Next: accounting enters the subcontract and clicks Entered into Accounting in the Power Automate approval email (or here), or sends it back to the PM here.",
     "Returned by Accounting": "Next: the PM fixes what accounting asked for and clicks Back to Accounting. No new approval needed unless the price or scope changed.",
     "Ready to Issue": "Locked: fully approved, it can no longer be cancelled or changed. Next: the PM drafts the contract and sends it through DocuSign (this step is coming soon).",
@@ -606,7 +605,9 @@
   function showDocState(status, history) {
     state.record = status ? { Title: state.doc.subcontractNumber, Status: status } : null;
     renderStatus();
-    $("statusNote").textContent = status ? `${NEXT[status] || ""} Decisions made from an approval email show here once everyone has closed the file.`.trim() : NOT_SUBMITTED;
+    const emailStep = status === "Pending Approval" || status === "With Accounting";
+    $("statusNote").textContent = status ? `${NEXT[status] || ""}${emailStep ? " Already answered from the approval email? Close and reopen this file to see it." : ""}`.trim() : NOT_SUBMITTED;
+    show("refreshBtn", true);
     const list = $("log"); list.innerHTML = "";
     (history || "").split(/\r?\n/).filter((l) => l.trim()).reverse().forEach((line) => {
       const [when, who, what, note] = line.split(" | ");
@@ -618,6 +619,20 @@
       list.append(li);
     });
     show("logSection", list.children.length > 0);
+  }
+
+  async function refreshDoc() {
+    const btn = $("refreshBtn"); btn.disabled = true;
+    try {
+      const before = state.record ? state.record.Status : "";
+      const d = await DWDoc.read(3);
+      const now = d ? d.status : "";
+      if (d) showDocState(d.status, d.history);
+      if (now && now !== before) message(`Status updated: ${now}.`, "ok");
+      else message("No change in this copy yet. If you answered from the approval email, close and reopen this file to see it.", "info");
+    } catch (e) {
+      message("Couldn't re-read the file. Close and reopen it to see the latest status.", "error");
+    } finally { btn.disabled = false; }
   }
 
   async function loadFromDoc(d) {
@@ -676,6 +691,7 @@
     $("backBtn").onclick = backToAccounting;
     $("actionCancel").onclick = () => { $("actionForm").hidden = true; };
     $("commentBtn").onclick = addComment;
+    $("refreshBtn").onclick = refreshDoc;
     start();
   });
 })();
