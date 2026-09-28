@@ -6,8 +6,9 @@
 (function () {
   const C = window.DW_CONFIG;
   const $ = (id) => document.getElementById(id);
-  const PRE_EXECUTED = ["Draft", "Pending Approval", "Approved", "With Trade", "With Accounting", "Returned by Accounting",
-    "Ready to Issue", "Out for Signature", "Signature Issue"];
+  // Everything before "Entered into Accounting". After that the subcontract is fully approved and locked for good:
+  // no cancel, withdraw or resubmit, and the record and history are kept as they are.
+  const PRE_EXECUTED = ["Draft", "Pending Approval", "Approved", "With Trade", "With Accounting", "Returned by Accounting"];
 
   const state = { doc: null, req: null, docUrl: null, record: null, project: null, region: null, me: null };
 
@@ -205,8 +206,8 @@
     ] : []);
     show("statusSection", true);
 
-    const canSubmit = !r || r.Status === "Draft";
-    $("submitTitle").textContent = r ? "Resubmit for approval" : "Submit for approval";
+    const canSubmit = !r || r.Status === "Draft" || r.Status === "Cancelled";
+    $("submitTitle").textContent = !r ? "Submit for approval" : r.Status === "Cancelled" ? "Restart: resubmit for approval" : "Resubmit for approval";
     show("backSection", !!r && r.Status === "Returned by Accounting");
     if (r && canSubmit) {
       if (r.EstimateCarried != null && !$("estimate").value) $("estimate").value = Number(r.EstimateCarried).toFixed(2);
@@ -252,7 +253,7 @@
     LogMarkup: { label: "Log Markup", statuses: ["Out for Signature"], prompt: "Attach the trade's markup. The open envelope will be voided.", file: true, fileRequired: true },
     LogDispute: { label: "Log Dispute", statuses: ["Out for Signature"], prompt: "Attach the email or summarize the call. The open envelope will be voided.", file: true, noteRequired: true },
     Resolve: { label: "Resolve Issue", statuses: ["Signature Issue"], prompt: "What was agreed, and where does it go next?", noteRequired: true,
-      choices: ["Reissue unchanged", "Appendix A must change", "Cancel subcontract"] },
+      choices: ["Reissue unchanged"] },
     Withdraw: { label: "Withdraw to Draft", statuses: PRE_EXECUTED.filter((s) => s !== "Draft"), prompt: "Pulls this back to Draft for your changes. Any open envelope is voided and it will need approval again. Logged with your note.", noteRequired: true },
     Cancel: { label: "Cancel Subcontract", statuses: PRE_EXECUTED, prompt: "This subcontract is not proceeding. Any open envelope will be voided. Logged with your note.", noteRequired: true }
   };
@@ -284,7 +285,7 @@
     AccountingComplete: "After the trade accepts", ReturnFromAccounting: "After the trade accepts", BackToAccounting: "If accounting sends it back",
     BuildPackage: "After it's entered into accounting", SendForSignature: "After the package is built",
     LogMarkup: "While out for signature", LogDispute: "While out for signature", Resolve: "If there's a signature issue",
-    Withdraw: "After submitting, until signed", Cancel: "Until signed"
+    Withdraw: "Before it is entered into accounting", Cancel: "Before it is entered into accounting"
   };
 
   function renderActions() {
@@ -589,11 +590,11 @@
     "With Trade": "Next: when the trade replies, the PM clicks Trade Accepted or Trade Wants Changes.",
     "With Accounting": "Next: accounting enters the subcontract and clicks Entered into Accounting in the Power Automate approval email (or here), or sends it back to the PM here.",
     "Returned by Accounting": "Next: the PM fixes what accounting asked for and clicks Back to Accounting. No new approval needed unless the price or scope changed.",
-    "Ready to Issue": "Next: the PM drafts the contract and sends it through DocuSign (this step is coming soon).",
+    "Ready to Issue": "Locked: fully approved, it can no longer be cancelled or changed. Next: the PM drafts the contract and sends it through DocuSign (this step is coming soon).",
     "Out for Signature": "Next: waiting on signatures through DocuSign.",
     "Signature Issue": "Next: the PM resolves the signature issue here.",
     "Executed": "Done: the subcontract is signed.",
-    "Cancelled": "Nothing further: this subcontract is cancelled."
+    "Cancelled": "Cancelled. To restart, resubmit it for approval below."
   };
   const NOT_SUBMITTED = "Not submitted yet. Submitting sends it to the approver, who gets an approval email with Approve buttons.";
 
