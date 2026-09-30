@@ -95,14 +95,16 @@
    * sets the status and adds the history line. Then saves. Returns the new {status, history}.
    * Nothing waits on Power Automate, so the next action can follow right away.
    */
-  async function apply(req, status, historyLine) {
+  async function apply(req, status, historyLine, keepLine) {
     const p = await findPart();
     if (!p) throw new Error("This file isn't set up for approvals (no DW Request column in its library).");
     const now = Date.now();
     const queue = parseQueue(textOf(p.doc, "DWRequest"))
       .filter((r) => r && r.id && (!r.sentAt || now - Date.parse(r.sentAt) < MAX_AGE_MS));
     queue.push(req);
-    const history = [textOf(p.doc, "DWHistory").trim(), historyLine].filter(Boolean).join("\n");
+    let old = textOf(p.doc, "DWHistory").trim();
+    if (keepLine) old = old.split(/\r?\n/).filter((l) => l.trim() && keepLine(l)).join("\n");
+    const history = [old, historyLine].filter(Boolean).join("\n");
     setText(p.doc, "DWRequest", JSON.stringify(queue.slice(-MAX_QUEUE)));
     if (status != null) setText(p.doc, "DWStatus", status);
     setText(p.doc, "DWHistory", history);

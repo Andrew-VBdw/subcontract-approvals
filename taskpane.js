@@ -373,13 +373,14 @@
     SendToTrade: "With Trade", TradeAccepted: "With Accounting", TradeAlreadyAgreed: "With Accounting",
     TradeWantsChanges: "Draft", AccountingComplete: "Ready to Issue", ReturnFromAccounting: "Returned by Accounting", BackToAccounting: "With Accounting",
     Withdraw: "Draft", Cancel: "Cancelled", LogMarkup: "Signature Issue", LogDispute: "Signature Issue",
-    "Resolve:Reissue unchanged": "Ready to Issue", "Resolve:Appendix A must change": "Draft", "Resolve:Cancel subcontract": "Cancelled"
+    "Resolve:Reissue unchanged": "Ready to Issue", "Resolve:Appendix A must change": "Draft", "Resolve:Cancel subcontract": "Cancelled",
+    AdminReset: "Draft"
   };
   const EVENT_NAME = {
     Submit: "Submitted", Resubmit: "Resubmitted", Approve: "Approved", ReturnToDraft: "Returned for changes",
     SendToTrade: "Sent to trade", TradeAccepted: "Trade accepted", TradeAlreadyAgreed: "Trade already agreed",
     TradeWantsChanges: "Trade wants changes", AccountingComplete: "Entered into accounting", ReturnFromAccounting: "Returned by accounting", BackToAccounting: "Back to accounting",
-    Withdraw: "Withdrawn", Cancel: "Cancelled", LogMarkup: "Markup", LogDispute: "Dispute", Resolve: "Resolved", Comment: "Comment"
+    Withdraw: "Withdrawn", Cancel: "Cancelled", LogMarkup: "Markup", LogDispute: "Dispute", Resolve: "Resolved", Comment: "Comment", AdminReset: "Admin reset"
   };
   const pad = (n) => String(n).padStart(2, "0");
   function stamp(d) { d = d || new Date(); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`; }
@@ -406,7 +407,9 @@
         payload: Object.assign({}, payload, { expectStatus: before, actorName: who }) };
       const line = [stamp(), who, EVENT_NAME[action] || action, note].join(" | ");
       const next = action === "Comment" ? null : (STATUS_AFTER[key] || before);
-      const res = await DWDoc.apply(req, next, line);
+      // An admin reset keeps only the comments in the file's history (the SharePoint log keeps everything).
+      const keep = action === "AdminReset" ? (l) => (l.split(" | ")[2] || "") === "Comment" : null;
+      const res = await DWDoc.apply(req, next, line, keep);
       showDocState(res.status, res.history);
       return;
     }
@@ -452,6 +455,21 @@
     } catch (e) {
       message("Could not complete: " + e.message, "error");
     } finally { $("actionGo").disabled = false; }
+  }
+
+  async function adminReset() {
+    const note = $("adminNote").value.trim();
+    if (!note) return message("Add the reason for the reset.", "error");
+    if (state.preview) return message("Preview: an admin reset would put it back to Draft. Nothing was sent.", "info");
+    $("adminGo").disabled = true;
+    try {
+      message("Working…", "info");
+      await sendRequest("AdminReset", { note });
+      $("adminNote").value = "";
+      message("Reset to Draft. It's logged, and the change is confirmed within a minute or two. If you are not the approver it will be refused and put back.", "ok");
+    } catch (e) {
+      message("Could not reset: " + e.message, "error");
+    } finally { $("adminGo").disabled = false; }
   }
 
   async function backToAccounting() {
@@ -609,6 +627,8 @@
     const emailStep = status === "Pending Approval" || status === "With Accounting";
     $("statusNote").textContent = status ? `${NEXT[status] || ""}${emailStep ? " Already answered from the approval email? Close and reopen this file to see it." : ""}`.trim() : NOT_SUBMITTED;
     show("refreshBtn", true);
+    show("adminBox", !!status);
+    $("adminForm").hidden = true;
     const list = $("log"); list.innerHTML = "";
     (history || "").split(/\r?\n/).filter((l) => l.trim()).reverse().forEach((line) => {
       const [when, who, what, note] = line.split(" | ");
@@ -693,6 +713,9 @@
     $("actionCancel").onclick = () => { $("actionForm").hidden = true; };
     $("commentBtn").onclick = addComment;
     $("refreshBtn").onclick = refreshDoc;
+    $("adminResetBtn").onclick = () => { $("adminForm").hidden = !$("adminForm").hidden; };
+    $("adminCancel").onclick = () => { $("adminForm").hidden = true; };
+    $("adminGo").onclick = adminReset;
     start();
   });
 })();

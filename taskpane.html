@@ -4,15 +4,15 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Subcontract Approvals</title>
-  <link rel="stylesheet" href="taskpane.css?v=6" />
+  <link rel="stylesheet" href="taskpane.css?v=7" />
   <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@azure/msal-browser@4.30.0/lib/msal-browser.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
   <script src="config.js?v=4"></script>
   <script src="graph.js?v=4"></script>
   <script src="package-builder.js?v=2"></script>
-  <script src="docchannel.js?v=4"></script>
-  <script src="taskpane.js?v=24"></script>
+  <script src="docchannel.js?v=5"></script>
+  <script src="taskpane.js?v=25"></script>
 </head>
 <body>
   <header>
@@ -36,6 +36,17 @@
       <label id="whoRow" class="who" hidden>Your name (for the history) <input id="whoName" type="text" autocomplete="name" /></label>
       <div class="status-row"><span id="statusBadge" class="badge"></span><span id="statusNote" class="muted"></span></div>
       <button id="refreshBtn" hidden>Refresh status</button>
+      <div id="adminBox" hidden>
+        <button id="adminResetBtn" class="admin">Admin: reset workflow (approver only)</button>
+        <div id="adminForm" class="admin-form" hidden>
+          <p class="muted">Puts this subcontract back to Draft (step 1) from any stage, even after it is locked. The panel history keeps comments only; the full record stays in the SharePoint approval log. Any open approval emails stop working. Only the approver can do this: anyone else's attempt is refused and logged.</p>
+          <label>Reason (required)
+            <textarea id="adminNote" rows="2" placeholder="e.g. scope changed after approval, restarting"></textarea>
+          </label>
+          <button id="adminGo" class="danger">Reset to Draft</button>
+          <button id="adminCancel">Back</button>
+        </div>
+      </div>
       <dl id="recordFields" class="fields"></dl>
     </section>
 

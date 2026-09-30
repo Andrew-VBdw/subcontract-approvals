@@ -58,3 +58,6 @@ button:disabled { opacity: .5; cursor: default; }
 
 label.check { color: var(--ink); display: flex; align-items: center; gap: 6px; font-weight: 600; margin: 8px 0; }
 label.check input { width: auto; margin: 0; }
+button.admin { background: none; border: none; padding: 2px 0; margin: 6px 0 0; color: var(--muted); text-decoration: underline; font-size: .9em; }
+button.danger { background: #8a1c1c; border-color: #8a1c1c; color: #fff; }
+.admin-form { border: 1px solid var(--line); border-radius: 4px; padding: 8px; margin-top: 6px; }
